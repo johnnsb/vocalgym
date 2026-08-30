@@ -43,7 +43,49 @@ interface Props {
   onClearAll: () => void;
 }
 
+const UNGROUPED = "__ungrouped__";
+
+interface AttemptGroup {
+  key: string;
+  label: string;
+  lastPracticed: number;
+  attempts: PracticeAttempt[];
+}
+
+// Group by the script each attempt belongs to. Groups are ordered by most
+// recently practiced; attempts within a group stay newest-first.
+function groupByScript(attempts: PracticeAttempt[]): AttemptGroup[] {
+  const map = new Map<string, PracticeAttempt[]>();
+  for (const a of attempts) {
+    const key = a.scriptId || UNGROUPED;
+    const bucket = map.get(key);
+    if (bucket) bucket.push(a);
+    else map.set(key, [a]);
+  }
+
+  const groups: AttemptGroup[] = [];
+  for (const [key, list] of Array.from(map.entries())) {
+    list.sort((a, b) => b.createdAt - a.createdAt);
+    const first = list[0];
+    const label =
+      first.scriptLabel?.trim() ||
+      (first.situation?.trim()
+        ? first.situation.trim().slice(0, 48)
+        : "Untitled script");
+    groups.push({
+      key,
+      label,
+      lastPracticed: first.createdAt,
+      attempts: list,
+    });
+  }
+  groups.sort((a, b) => b.lastPracticed - a.lastPracticed);
+  return groups;
+}
+
 export default function PastAttempts({ attempts, onDelete, onClearAll }: Props) {
+  const groups = groupByScript(attempts);
+
   return (
     <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
       <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-4 py-3">
@@ -71,15 +113,29 @@ export default function PastAttempts({ attempts, onDelete, onClearAll }: Props) 
           Your practice attempts will show up here.
         </p>
       ) : (
-        <ul className="divide-y divide-slate-100 lg:max-h-[calc(100vh-12rem)] lg:overflow-y-auto">
-          {attempts.map((attempt) => (
-            <AttemptRow
-              key={attempt.id}
-              attempt={attempt}
-              onDelete={onDelete}
-            />
+        <div className="lg:max-h-[calc(100vh-12rem)] lg:overflow-y-auto">
+          {groups.map((group) => (
+            <section key={group.key}>
+              <div className="sticky top-0 z-10 flex items-baseline gap-2 border-b border-slate-100 bg-slate-50/95 px-4 py-2 backdrop-blur">
+                <h3 className="truncate text-xs font-semibold text-slate-700">
+                  {group.label}
+                </h3>
+                <span className="flex-none text-[10px] font-medium text-slate-400">
+                  {group.attempts.length}
+                </span>
+              </div>
+              <ul className="divide-y divide-slate-100">
+                {group.attempts.map((attempt) => (
+                  <AttemptRow
+                    key={attempt.id}
+                    attempt={attempt}
+                    onDelete={onDelete}
+                  />
+                ))}
+              </ul>
+            </section>
           ))}
-        </ul>
+        </div>
       )}
     </div>
   );

@@ -4,6 +4,8 @@ import {
   buildUserPrompt,
   FEEDBACK_SYSTEM_PROMPT,
   buildFeedbackPrompt,
+  LABEL_SYSTEM_PROMPT,
+  buildLabelPrompt,
   type FeedbackPromptExtras,
 } from "./prompt";
 import type { Tone } from "./types";
@@ -13,6 +15,20 @@ import type { Tone } from "./types";
  * (e.g. "claude-opus-5" for higher quality).
  */
 export const MODEL = "claude-sonnet-5";
+
+/** Cheap model for the tiny "title this script" task. */
+export const LABEL_MODEL = "claude-haiku-4-5-20251001";
+
+const MAX_LABEL_CHARS = 60;
+
+/** Trim a model-produced label to something short and header-safe. */
+function cleanLabel(raw: string): string {
+  return raw
+    .split("\n")[0]
+    .replace(/^["'\s]+|["'.\s]+$/g, "")
+    .slice(0, MAX_LABEL_CHARS)
+    .trim();
+}
 
 let client: Anthropic | null = null;
 
@@ -36,10 +52,23 @@ function getClient(): Anthropic {
   }));
 }
 
+export interface GeneratedScript {
+  script: string;
+  /** 2–4 word label parsed from the leading `Title:` line; "" if absent. */
+  label: string;
+}
+
+/** Split a leading `Title: ...` line (see SYSTEM_PROMPT) off the script body. */
+function splitTitle(text: string): GeneratedScript {
+  const m = text.match(/^[ \t]*title:[ \t]*(.+?)[ \t]*\r?\n+/i);
+  if (!m) return { script: text, label: "" };
+  return { script: text.slice(m[0].length).trimStart(), label: cleanLabel(m[1]) };
+}
+
 export async function generateScript(
   situation: string,
   tone?: Tone,
-): Promise<string> {
+): Promise<GeneratedScript> {
   const response = await getClient().messages.create({
     model: MODEL,
     max_tokens: 4096,
@@ -47,7 +76,31 @@ export async function generateScript(
     messages: [{ role: "user", content: buildUserPrompt(situation, tone) }],
   });
 
-  return textOf(response);
+  return splitTitle(textOf(response));
+}
+
+/**
+ * Tiny/cheap Haiku call to title a script the user brought themselves (the
+ * generate path gets its label from `generateScript`). Never throws — returns
+ * "" on any failure so the save flow isn't blocked.
+ */
+export async function generateScriptLabel(
+  situation: string,
+  script: string,
+): Promise<string> {
+  try {
+    const response = await getClient().messages.create({
+      model: LABEL_MODEL,
+      max_tokens: 24,
+      system: LABEL_SYSTEM_PROMPT,
+      messages: [
+        { role: "user", content: buildLabelPrompt(situation, script) },
+      ],
+    });
+    return cleanLabel(textOf(response));
+  } catch {
+    return "";
+  }
 }
 
 export async function generatePracticeFeedback(

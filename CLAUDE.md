@@ -46,7 +46,8 @@ signals — rolled up into a single "Effective" score.
     if not, a plain paste box (+ upload .txt/.md/.pdf, parsed in the browser) →
     tone → "Continue to practice". source = "uploaded".
   - `/generate` (`GenerateFlow`) — "help me find the words": situation + tone →
-    POST /api/generate-script → `ScriptResult`. source = "generated".
+    POST /api/generate-script → `{ script, label }` → `ScriptResult`.
+    source = "generated".
   - `/experts` (`ExpertRequestForm`) — NOT an AI feature. A contact form
     (situation + name + email) → POST /api/expert-request → `ExpertRequest`
     table. Confirmation message shown; requests are fulfilled manually via
@@ -66,15 +67,31 @@ signals — rolled up into a single "Effective" score.
   - Models (`prisma/schema.prisma`): `Session` (1 per browser; `currentScript`
     and `rubric` are `Json?` blobs — StoredScript / RubricSelection shapes),
     `Attempt` (FK → Session, cascade; newest 50/session kept), `ExpertRequest`,
-    `UsageCounter` (single row id=1).
+    `UsageCounter` (single row id=1). There is no scripts table — the
+    `currentScript` blob carries `id` + `label` (see below), and `Attempt` has
+    denormalized `scriptId` / `scriptLabel` columns so history can be grouped.
+  - Script id + label: `patchState` assigns `currentScript.id` (a UUID) the
+    first time a script is saved and keeps it stable while the text is
+    unchanged, minting a fresh one when the text changes. `currentScript.label`
+    is a 2–4 word Claude title — the **generate** path gets it in the same
+    response (Claude emits a leading `Title:` line, split off in
+    `lib/anthropic.ts` `generateScript`), the **bring-your-own** path gets it
+    from a separate cheap Haiku call (`POST /api/script-label`) in
+    `goPractice()`. Each saved attempt copies the current `scriptId` + `label`.
   - `lib/sessionState.server.ts` is the server data layer (`getState`,
     `patchState`, `addAttempt`, `removeAttempt`, `clearAttempts`) and validates
     every untrusted blob before it's stored.
   - API: `GET /api/state` → `{ currentScript, rubric, attempts }` (one-shot
     hydration for every page), `PATCH /api/state` → partial
-    `{ currentScript?, rubric? }`, `POST /api/attempts` (returns the row),
-    `DELETE /api/attempts` (clear all), `DELETE /api/attempts/[id]` (one,
-    session-scoped so a foreign id is a no-op).
+    `{ currentScript?, rubric? }`, `POST /api/attempts` (returns the row, takes
+    `scriptId` / `scriptLabel`), `DELETE /api/attempts` (clear all),
+    `DELETE /api/attempts/[id]` (one, session-scoped so a foreign id is a
+    no-op), `POST /api/script-label` (Haiku, best-effort → `{ label }`, not
+    counted against the demo cap).
+  - `PastAttempts.tsx` groups the history by `scriptId` — a header per script
+    (its `scriptLabel`, falling back to the situation text), groups ordered by
+    most-recently-practiced, attempts within a group newest-first, each row
+    still individually collapsible.
   - `lib/practiceStore.ts` (client) is now an async fetch wrapper over those
     endpoints — same function names, all Promise-returning, with a ~1.5s
     in-flight cache so a page with two consumers issues one GET. Draft-sync
@@ -99,8 +116,8 @@ signals — rolled up into a single "Effective" score.
   - The two Claude routes emit full-lifecycle structured console logs via
     `lib/logger.ts` (`[<route> <request-id>]` — request received / anthropic
     call started / succeeded|failed / response sent / blocked by cap /
-    verification failed). `expert-request` logs its own lifecycle; `state` and
-    `attempts` log failures only, through the same helper.
+    verification failed). `expert-request` and `script-label` log their own
+    lifecycle; `state` and `attempts` log failures only, through the same helper.
   - Before returning, `lib/verifyOutput.ts` checks the feedback has all 5
     required sections (Nonverbal is optional) and the script is
     non-empty/structured. A failure is logged + sent to Sentry and the route
@@ -126,12 +143,17 @@ signals — rolled up into a single "Effective" score.
     `feedback_received` ({used_video, effective_score, effective_band}),
     `expert_request_submitted` (no props). Verified end-to-end: seeded secret
     script/PII text never appeared in any outgoing PostHog request.
-  - `components/FeedbackWidget.tsx` — dismissible survey widget reporting via
-    PostHog's `survey sent` / `survey dismissed` events. `variant="inline"` is
-    shown on `/practice` after coaching notes ("Was this feedback helpful?");
-    `variant="floating"` is a corner pill on `/` (general feedback). Renders
-    nothing when analytics is disabled; remembers dismissal in localStorage
-    (`vocalgym:survey:<key>`). Dashboard-created PostHog surveys also render
+  - `components/FeedbackWidget.tsx` — one dismissible smiley-rating pattern used
+    at every completion point: after a script is generated (`GenerateFlow`),
+    after practice coaching is shown (`PracticeSession`), and as a general
+    floating pill on `/`. Pick one of 5 faces (frustrated→great, reported as
+    1–5) → an optional "Anything you'd like to share?" note → submit. Reports via
+    PostHog's `survey sent` (props: `$survey_response`/`rating`, `rating_label`,
+    `scale_max`, `has_comment`, `comment`) / `survey dismissed`. Gated on
+    `ANALYTICS_ENABLED` (renders nothing without a key); remembers done/dismissed
+    per browser in localStorage (`vocalgym:survey:<key>` — keys
+    `script_generated_rating`, `practice_feedback_rating`,
+    `general_feedback_rating`). Dashboard-created PostHog surveys also render
     since `disable_surveys` is left default.
 
 ## Effectiveness rubric + score

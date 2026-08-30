@@ -26,6 +26,13 @@ export interface GenerateScriptRequest {
 
 export interface GenerateScriptResponse {
   script: string;
+  /** 2–4 word title for the script, generated in the same call. May be "". */
+  label: string;
+}
+
+export interface ScriptLabelResponse {
+  /** 2–4 word title, or "" if generation failed (non-fatal). */
+  label: string;
 }
 
 export interface ErrorResponse {
@@ -167,6 +174,11 @@ export interface StoredScript {
   savedAt: number;
   /** How this script got here — "uploaded" hides the Regenerate action. */
   source?: "generated" | "uploaded";
+  /** Stable id for this script, assigned server-side and keyed to the text.
+   *  Attempts reference it so the history can be grouped. */
+  id?: string;
+  /** 2–4 word Claude-generated title, used as the group header in history. */
+  label?: string;
 }
 
 /** One rehearsal attempt plus the coaching it got back. Persisted in localStorage. */
@@ -180,4 +192,8 @@ export interface PracticeAttempt {
   feedback: string;
   nonverbal?: NonverbalMetrics | null;
   effective?: EffectiveResult | null;
+  /** Which script this attempt belongs to, for grouping the history. */
+  scriptId?: string | null;
+  /** The script's label at the time of the attempt (denormalized). */
+  scriptLabel?: string | null;
 }

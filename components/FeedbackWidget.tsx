@@ -3,13 +3,13 @@
 import { useEffect, useState } from "react";
 import { ANALYTICS_ENABLED, EVENTS, track } from "@/lib/analytics";
 
-// A small, dismissible feedback prompt that reports into PostHog Surveys via the
-// "survey sent" / "survey dismissed" events. Two shapes:
-//   - variant="inline"   — a card dropped into the page flow (used on /practice
-//                          once coaching notes are shown)
-//   - variant="floating" — a fixed pill in the corner (used on the landing page
-//                          for general product feedback)
-// Once answered or dismissed it stays hidden for that browser.
+// A small, dismissible smiley-rating prompt shown at each "completion point"
+// (script generated, practice feedback shown, and a general one on the landing
+// page). Pick a face -> an optional note is revealed -> submit. Reports into
+// PostHog Surveys via "survey sent" / "survey dismissed", carrying the rating
+// and the note. Once answered or dismissed it stays hidden for that browser.
+//   - variant="inline"   — a card in the page flow
+//   - variant="floating" — a fixed corner pill that expands
 
 type Variant = "inline" | "floating";
 
@@ -23,6 +23,15 @@ interface Props {
 type Phase = "hidden" | "prompt" | "comment" | "done";
 
 const STORAGE_PREFIX = "vocalgym:survey:";
+
+// 5-point frustrated -> great scale. `value` is what gets reported.
+const FACES = [
+  { value: 1, emoji: "😞", label: "Frustrated" },
+  { value: 2, emoji: "😕", label: "Unhappy" },
+  { value: 3, emoji: "😐", label: "Neutral" },
+  { value: 4, emoji: "🙂", label: "Good" },
+  { value: 5, emoji: "😄", label: "Great" },
+];
 
 function readState(key: string): "open" | "closed" {
   try {
@@ -59,18 +68,24 @@ export default function FeedbackWidget({
   if (!ANALYTICS_ENABLED) return null;
   if (phase === "hidden") return null;
 
+  const chosen = FACES.find((f) => f.value === rating);
+
   function choose(value: number) {
     setRating(value);
     setPhase("comment");
   }
 
   function send() {
+    const face = FACES.find((f) => f.value === rating);
     track(EVENTS.surveySent, {
       $survey_name: surveyName,
       survey_key: surveyKey,
-      // numeric rating only + whether a free-text note was added; the note
-      // itself is deliberate product feedback, so it's fine to include.
+      // numeric rating + label; the note is deliberate product feedback so it's
+      // fine to include verbatim.
       $survey_response: rating,
+      rating,
+      rating_label: face?.label,
+      scale_max: FACES.length,
       has_comment: comment.trim().length > 0,
       comment: comment.trim() || undefined,
     });
@@ -109,32 +124,41 @@ export default function FeedbackWidget({
           <p className="pr-6 text-sm font-medium text-slate-800">{question}</p>
 
           {phase === "prompt" && (
-            <div className="mt-3 flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => choose(1)}
-                className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-              >
-                👍 Yes
-              </button>
-              <button
-                type="button"
-                onClick={() => choose(0)}
-                className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-              >
-                👎 Not really
-              </button>
+            <div className="mt-3 flex gap-1">
+              {FACES.map((f) => (
+                <button
+                  key={f.value}
+                  type="button"
+                  onClick={() => choose(f.value)}
+                  aria-label={f.label}
+                  title={f.label}
+                  className="rounded-md px-1.5 py-1 text-2xl leading-none opacity-70 transition hover:scale-110 hover:opacity-100 focus:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+                >
+                  {f.emoji}
+                </button>
+              ))}
             </div>
           )}
 
           {phase === "comment" && (
             <div className="mt-3 space-y-2">
+              <p className="text-xs text-slate-500">
+                {chosen?.emoji} {chosen?.label}
+                {" · "}
+                <button
+                  type="button"
+                  onClick={() => setPhase("prompt")}
+                  className="underline underline-offset-2 hover:text-slate-700"
+                >
+                  change
+                </button>
+              </p>
               <textarea
                 value={comment}
                 onChange={(e) => setComment(e.target.value)}
                 rows={3}
                 maxLength={1000}
-                placeholder="Anything else? (optional)"
+                placeholder="Anything you'd like to share? (optional)"
                 className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
               />
               <div className="flex gap-2">
@@ -150,7 +174,7 @@ export default function FeedbackWidget({
                   onClick={send}
                   className="rounded-md px-3 py-1.5 text-sm font-medium text-slate-500 transition hover:text-slate-700"
                 >
-                  Skip note
+                  Skip
                 </button>
               </div>
             </div>

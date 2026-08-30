@@ -11,7 +11,11 @@ export const SYSTEM_PROMPT = `You are a communication coach. You help people pre
 
 Given a situation, produce a short, practical script the person can rehearse out loud in two to three minutes.
 
-Format the response in Markdown with exactly these sections:
+Begin your response with a single line in exactly this form:
+Title: <a 2-4 word label for this conversation, like a chat title — no quotes, no trailing punctuation>
+Then a blank line, then the script.
+
+Format the script in Markdown with exactly these sections:
 - **Goal** — one sentence naming what a good outcome looks like.
 - **Opening line** — a specific sentence they can say to start.
 - **Key talking points** — 3 to 5 bullets, each a short thing to say in their own voice (not stage directions).
@@ -34,6 +38,22 @@ const TONE_GUIDANCE: Record<Tone, string> = {
   celebratory:
     "Keep it upbeat and celebratory while staying sincere and specific.",
 };
+
+export const LABEL_SYSTEM_PROMPT =
+  "You write very short titles for saved conversation scripts, like chat titles. " +
+  "Given a situation and/or a script, reply with ONLY a 2-4 word label — no quotes, " +
+  "no trailing punctuation, no explanation. Examples: \"Boss — raise ask\", " +
+  "\"Daughter curfew talk\", \"Investor pitch intro\".";
+
+export function buildLabelPrompt(situation: string, script: string): string {
+  const lines: string[] = [];
+  if (situation.trim()) lines.push(`Situation: ${situation.trim()}`);
+  if (script.trim()) {
+    lines.push(`Script excerpt:\n${script.trim().slice(0, 600)}`);
+  }
+  lines.push("", "Label:");
+  return lines.join("\n");
+}
 
 export function buildUserPrompt(situation: string, tone?: Tone): string {
   const lines = [`Situation: ${situation}`];

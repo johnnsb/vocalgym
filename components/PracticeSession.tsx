@@ -61,6 +61,10 @@ export default function PracticeSession() {
 
   const [attempts, setAttempts] = useState<PracticeAttempt[]>([]);
   const sessionTracked = useRef(false);
+  const scriptMetaRef = useRef<{ id: string | null; label: string | null }>({
+    id: null,
+    label: null,
+  });
 
   useEffect(() => {
     let cancelled = false;
@@ -72,6 +76,10 @@ export default function PracticeSession() {
           setScript(stored.script);
           setSituation(stored.situation);
           setTone(stored.tone);
+          scriptMetaRef.current = {
+            id: stored.id ?? null,
+            label: stored.label ?? null,
+          };
           // Event only — no script text. Marks entry into the practice step.
           // Ref-guarded so StrictMode's double mount doesn't double-count.
           if (!sessionTracked.current) {
@@ -165,6 +173,8 @@ export default function PracticeSession() {
           feedback: data.feedback,
           nonverbal,
           effective,
+          scriptId: scriptMetaRef.current.id,
+          scriptLabel: scriptMetaRef.current.label,
         });
         setAttempts((prev) => [saved, ...prev].slice(0, 50));
       } catch (saveErr) {
@@ -414,9 +424,9 @@ export default function PracticeSession() {
           <>
             <PracticeFeedback feedback={feedback} />
             <FeedbackWidget
-              surveyKey="practice_feedback_helpful"
-              surveyName="Was this feedback helpful?"
-              question="Was this feedback helpful?"
+              surveyKey="practice_feedback_rating"
+              surveyName="Practice feedback rating"
+              question="How was this feedback?"
               variant="inline"
             />
           </>

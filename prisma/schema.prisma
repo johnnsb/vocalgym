@@ -42,6 +42,12 @@ model Attempt {
   session   Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
 
+  // Which script this attempt belongs to (the `id` from Session.currentScript's
+  // JSON blob at save time) + that script's label, denormalized so the history
+  // can be grouped with a stable header even after the current script changes.
+  scriptId    String?
+  scriptLabel String?
+
   script     String
   situation  String  @default("")
   tone       String  @default("")
@@ -54,6 +60,7 @@ model Attempt {
   effective Json?
 
   @@index([sessionId, createdAt])
+  @@index([scriptId])
 }
 
 /// "Get expert help" contact-form submissions, fulfilled manually via

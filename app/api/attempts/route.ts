@@ -31,6 +31,8 @@ export async function POST(request: Request) {
       feedback: b.feedback,
       nonverbal: b.nonverbal,
       effective: b.effective,
+      scriptId: b.scriptId,
+      scriptLabel: b.scriptLabel,
     });
     return NextResponse.json({ attempt });
   } catch (err) {

@@ -76,7 +76,8 @@ prisma/
   schema.prisma                    Session / Attempt / ExpertRequest / UsageCounter
   migrations/                      Committed SQL migrations (prisma migrate)
 app/
-  api/generate-script/route.ts     POST endpoint that calls the Claude API
+  api/generate-script/route.ts     POST -> { script, label } from one Claude call
+  api/script-label/route.ts        POST -> { label } (Haiku) for brought-your-own scripts
   api/practice-feedback/route.ts   POST endpoint: transcript + script -> coaching
   api/state/route.ts               GET session state (script+rubric+attempts); PATCH to update
   api/attempts/route.ts            POST save an attempt; DELETE clear all
@@ -108,8 +109,8 @@ components/
   FeedbackSections.tsx             Parses feedback markdown into color-coded sections
   NonverbalSummary.tsx             Compact eye-contact / posture / expressiveness chips
   EffectiveScore.tsx               The Effective score + per-attribute breakdown bars
-  PastAttempts.tsx                 Collapsible sidebar history
-  FeedbackWidget.tsx               Dismissible PostHog survey (inline on /practice, floating on /)
+  PastAttempts.tsx                 Sidebar history, grouped by script (label header), rows collapsible
+  FeedbackWidget.tsx               Dismissible smiley-rating PostHog survey (generate / practice / landing)
 lib/
   anthropic.ts                     Anthropic client + generateScript() / generatePracticeFeedback()
   prompt.ts                        System prompts + prompt builders
@@ -143,10 +144,18 @@ demo usage counter all live in Postgres. `prisma/schema.prisma` models:
 
 | Model | Notes |
 | --- | --- |
-| `Session` | one row per browser (`vg_sid` cookie). `currentScript` + `rubric` are `Json?` blobs. |
-| `Attempt` | FK → `Session` (cascade delete). Newest 50 per session are kept. |
+| `Session` | one row per browser (`vg_sid` cookie). `currentScript` + `rubric` are `Json?` blobs. `currentScript` carries an `id` + a 2–4 word `label` (see below). |
+| `Attempt` | FK → `Session` (cascade delete). Newest 50 per session are kept. `scriptId` / `scriptLabel` are denormalized from the current script so the history sidebar can group by script. |
 | `ExpertRequest` | `/experts` form submissions. |
 | `UsageCounter` | single row (`id = 1`) for the demo cap. |
+
+There is no `Script` table — the "current script" is the `Session.currentScript`
+JSON blob. Its `id` is assigned on first save and stays stable while the text is
+unchanged (a fresh one is minted when the text changes). Its `label` is a short
+Claude-generated title: the **generate** path returns it in the same response
+(Claude prefixes a `Title:` line, split off in `lib/anthropic.ts`); the
+**bring-your-own** path fetches it from `POST /api/script-label` (a cheap Haiku
+call, best-effort) when you continue to practice.
 
 Two connection strings, both secret:
 
@@ -192,8 +201,8 @@ wrapper over `GET/PATCH /api/state` and `POST/DELETE /api/attempts`.
   `SENTRY_AUTH_TOKEN` and drop `sourcemaps.disable` for readable stack traces.
 - **Structured logs** — the two Claude routes (`generate-script`,
   `practice-feedback`) log `request received` → `anthropic call started` →
-  `succeeded` / `failed` → `response sent`; `expert-request` logs its own
-  lifecycle; `state` / `attempts` log failures only. Every line is prefixed
+  `succeeded` / `failed` → `response sent`; `expert-request` and `script-label`
+  log their own lifecycle; `state` / `attempts` log failures only. Every line is prefixed
   `[<route> <request-id>]` (see `lib/logger.ts`), plain `console` — visible in
   `npm run dev` output or your host's function logs.
 - **Output verification** — before returning, `lib/verifyOutput.ts` checks the
@@ -223,12 +232,15 @@ wrapper over `GET/PATCH /api/state` and `POST/DELETE /api/attempts`.
   the expert-form name/email/situation. `track()`'s props are typed to
   primitives so content can't be passed by accident; autocapture, session
   recording and anonymous person profiles are all turned off.
-- **In-app feedback** — `components/FeedbackWidget.tsx` reports via PostHog's
-  `survey sent` / `survey dismissed` events: a small "Was this feedback
-  helpful?" card on `/practice` after coaching notes, and a floating "Feedback"
-  pill on the landing page. Dismissals are remembered per browser
-  (`vocalgym:survey:<key>` in localStorage). Surveys created in the PostHog
-  dashboard also render (SDK default).
+- **In-app feedback** — `components/FeedbackWidget.tsx`: a smiley-rating card
+  (5 faces, frustrated→great, reported 1–5) shown at each completion point —
+  after a script is generated, after practice coaching is shown, and as a
+  floating "Feedback" pill on the landing page. Picking a face reveals an
+  optional note; both are reported via PostHog's `survey sent` /
+  `survey dismissed` events (`rating`, `rating_label`, `has_comment`,
+  `comment`). Gated on `ANALYTICS_ENABLED`; done/dismissed is remembered per
+  browser (`vocalgym:survey:<key>` in localStorage). Surveys created in the
+  PostHog dashboard also render (SDK default).
 
 ## Demo usage cap
 

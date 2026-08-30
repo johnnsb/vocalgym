@@ -103,7 +103,7 @@ export default function Home() {
       </footer>
 
       <FeedbackWidget
-        surveyKey="general_feedback"
+        surveyKey="general_feedback_rating"
         surveyName="General feedback"
         question="How's VocalGym working for you?"
         variant="floating"

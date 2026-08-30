@@ -63,9 +63,10 @@ export async function POST(request: Request) {
       tone: tone ?? "none",
       situationChars: situation.length,
     });
-    const script = await generateScript(situation, tone);
+    const { script, label } = await generateScript(situation, tone);
     logInfo(SCOPE, rid, "anthropic call succeeded", {
       scriptChars: script?.length ?? 0,
+      hasLabel: Boolean(label),
     });
 
     if (!script) {
@@ -101,7 +102,7 @@ export async function POST(request: Request) {
     }
 
     logInfo(SCOPE, rid, "response sent (200)");
-    return NextResponse.json({ script });
+    return NextResponse.json({ script, label });
   } catch (err) {
     if (err instanceof Anthropic.AuthenticationError) {
       logError(SCOPE, rid, "anthropic call failed: authentication");

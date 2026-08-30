@@ -12,6 +12,7 @@ import { ACCEPTED_UPLOAD, extractScriptText } from "@/lib/scriptImport";
 import {
   broadcastToneChange,
   loadState,
+  requestScriptLabel,
   saveCurrentScript,
 } from "@/lib/practiceStore";
 import { reportClientError } from "@/lib/clientErrors";
@@ -30,6 +31,7 @@ export default function BringScriptFlow() {
   const [script, setScript] = useState("");
   const [tone, setTone] = useState<Tone | "">("");
   const [uploading, setUploading] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -57,7 +59,7 @@ export default function BringScriptFlow() {
     };
   }, []);
 
-  const persist = (text: string, t: Tone | ""): Promise<void> => {
+  const persist = (text: string, t: Tone | "", label?: string): Promise<void> => {
     if (!savedAtRef.current) savedAtRef.current = Date.now();
     return saveCurrentScript({
       script: text,
@@ -65,6 +67,7 @@ export default function BringScriptFlow() {
       tone: t,
       savedAt: savedAtRef.current,
       source: "uploaded",
+      ...(label ? { label } : {}),
     });
   };
 
@@ -127,12 +130,16 @@ export default function BringScriptFlow() {
   async function goPractice() {
     const trimmed = script.trim();
     if (!trimmed) return;
-    // Await the save so /practice's hydration fetch sees this script.
+    setSaving(true);
     try {
-      await persist(trimmed, tone);
+      // Tiny Haiku call to title the script (no situation text on this path),
+      // then save. Await both so /practice's hydration fetch sees them.
+      const label = await requestScriptLabel("", trimmed);
+      await persist(trimmed, tone, label);
     } catch (err) {
       reportClientError(err, { area: "script:go-practice" });
       setError("Couldn't save your script. Please try again.");
+      setSaving(false);
       return;
     }
     // Event only — the script text is never sent.
@@ -143,7 +150,20 @@ export default function BringScriptFlow() {
     router.push("/practice");
   }
 
-  function useExisting() {
+  async function useExisting() {
+    // Backfill a label/id for scripts saved before history grouping existed.
+    if (existing && !existing.label) {
+      setSaving(true);
+      try {
+        const label = await requestScriptLabel(
+          existing.situation,
+          existing.script,
+        );
+        await saveCurrentScript({ ...existing, label: label || undefined });
+      } catch (err) {
+        reportClientError(err, { area: "script:use-existing" });
+      }
+    }
     track(EVENTS.scriptProvided, {
       tone: existing?.tone || "none",
       method: "reused",
@@ -186,9 +206,10 @@ export default function BringScriptFlow() {
           <button
             type="button"
             onClick={useExisting}
-            className="inline-flex items-center rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-700"
+            disabled={saving}
+            className="inline-flex items-center rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            Use this script &rarr;
+            {saving ? "Saving…" : "Use this script →"}
           </button>
           <button
             type="button"
@@ -277,10 +298,10 @@ export default function BringScriptFlow() {
       <button
         type="button"
         onClick={goPractice}
-        disabled={!script.trim()}
+        disabled={!script.trim() || saving}
         className="inline-flex items-center rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
       >
-        Continue to practice &rarr;
+        {saving ? "Saving…" : "Continue to practice →"}
       </button>
     </div>
   );

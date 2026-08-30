@@ -117,6 +117,31 @@ export interface NewAttempt {
   feedback: string;
   nonverbal?: PracticeAttempt["nonverbal"];
   effective?: PracticeAttempt["effective"];
+  scriptId?: string | null;
+  scriptLabel?: string | null;
+}
+
+/**
+ * Ask the server for a short label for a brought-your-own script (the generate
+ * path gets its label in the generation response). Best-effort — resolves to ""
+ * on any failure so the caller can proceed without a label.
+ */
+export async function requestScriptLabel(
+  situation: string,
+  script: string,
+): Promise<string> {
+  try {
+    const res = await fetch("/api/script-label", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ situation, script }),
+    });
+    if (!res.ok) return "";
+    const data = (await res.json()) as { label?: unknown };
+    return typeof data.label === "string" ? data.label : "";
+  } catch {
+    return "";
+  }
 }
 
 /** Save a rehearsal attempt; resolves to the stored row (with id + createdAt). */

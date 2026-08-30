@@ -8,7 +8,15 @@ import { TONES, type PracticeAttempt, type RubricSelection, type StoredScript, t
 // rehearsal attempts. All reads/writes are scoped to a session id.
 
 const MAX_ATTEMPTS = 50;
-const LIMITS = { script: 8000, situation: 2000, tone: 40, transcript: 12000, feedback: 40000 };
+const LIMITS = {
+  script: 8000,
+  situation: 2000,
+  tone: 40,
+  transcript: 12000,
+  feedback: 40000,
+  scriptId: 200,
+  label: 80,
+};
 
 function asString(v: unknown, max: number): string {
   return typeof v === "string" ? v.slice(0, max) : "";
@@ -24,17 +32,43 @@ function asJsonObject(v: unknown): Prisma.InputJsonValue | null {
   return v !== null && typeof v === "object" ? (v as Prisma.InputJsonValue) : null;
 }
 
-/** Normalize an untrusted currentScript blob (or null) for storage/return. */
-export function normalizeStoredScript(v: unknown): StoredScript | null {
+/**
+ * Normalize an untrusted currentScript blob (or null) for storage/return.
+ *
+ * `existing` (the currently-stored script, on the write path) is used to keep a
+ * script's `id`/`label` stable while its text is unchanged, and to mint a fresh
+ * `id` when the text changes. On the read path it's omitted and whatever is
+ * stored passes through.
+ */
+export function normalizeStoredScript(
+  v: unknown,
+  existing?: StoredScript | null,
+): StoredScript | null {
   if (!v || typeof v !== "object") return null;
   const p = v as Partial<StoredScript>;
   if (typeof p.script !== "string" || !p.script.trim()) return null;
+
+  const script = p.script.slice(0, LIMITS.script);
+  const sameText = existing != null && existing.script === script;
+
+  const incomingId = asString(p.id, LIMITS.scriptId).trim();
+  const id =
+    incomingId ||
+    (sameText && existing?.id ? existing.id : undefined) ||
+    (existing !== undefined ? crypto.randomUUID() : undefined);
+
+  const incomingLabel = asString(p.label, LIMITS.label).trim();
+  const label =
+    incomingLabel || (sameText && existing?.label ? existing.label : undefined);
+
   return {
-    script: p.script.slice(0, LIMITS.script),
+    script,
     situation: asString(p.situation, LIMITS.situation),
     tone: asTone(p.tone),
     savedAt: typeof p.savedAt === "number" ? p.savedAt : Date.now(),
     source: p.source === "uploaded" ? "uploaded" : "generated",
+    ...(id ? { id } : {}),
+    ...(label ? { label } : {}),
   };
 }
 
@@ -56,6 +90,8 @@ export function normalizeRubricSelection(v: unknown): RubricSelection | null {
 type AttemptRow = {
   id: string;
   createdAt: Date;
+  scriptId: string | null;
+  scriptLabel: string | null;
   script: string;
   situation: string;
   tone: string;
@@ -69,6 +105,8 @@ function rowToAttempt(r: AttemptRow): PracticeAttempt {
   return {
     id: r.id,
     createdAt: r.createdAt.getTime(),
+    scriptId: r.scriptId,
+    scriptLabel: r.scriptLabel,
     script: r.script,
     situation: r.situation,
     tone: asTone(r.tone),
@@ -112,10 +150,18 @@ export async function patchState(
   const fields: { currentScript?: JsonField; rubric?: JsonField } = {};
 
   if ("currentScript" in patch) {
+    let existing: StoredScript | null = null;
+    if (patch.currentScript !== null) {
+      const row = await prisma.session.findUnique({
+        where: { id: sessionId },
+        select: { currentScript: true },
+      });
+      existing = normalizeStoredScript(row?.currentScript ?? null);
+    }
     fields.currentScript = toJsonField(
       patch.currentScript === null
         ? null
-        : normalizeStoredScript(patch.currentScript),
+        : normalizeStoredScript(patch.currentScript, existing),
     );
   }
   if ("rubric" in patch) {
@@ -140,6 +186,8 @@ export interface AttemptInput {
   feedback: unknown;
   nonverbal?: unknown;
   effective?: unknown;
+  scriptId?: unknown;
+  scriptLabel?: unknown;
 }
 
 export async function addAttempt(
@@ -158,9 +206,14 @@ export async function addAttempt(
   const nv = asJsonObject(input.nonverbal ?? null);
   const eff = asJsonObject(input.effective ?? null);
 
+  const scriptId = asString(input.scriptId, LIMITS.scriptId).trim() || null;
+  const scriptLabel = asString(input.scriptLabel, LIMITS.label).trim() || null;
+
   const row = await prisma.attempt.create({
     data: {
       sessionId,
+      scriptId,
+      scriptLabel,
       script,
       situation: asString(input.situation, LIMITS.situation),
       tone: asTone(input.tone),

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import ScriptForm from "./ScriptForm";
 import ScriptResult from "./ScriptResult";
+import FeedbackWidget from "./FeedbackWidget";
 import type { GenerateScriptResponse, Tone } from "@/lib/types";
 import {
   broadcastToneChange,
@@ -23,6 +24,7 @@ export default function GenerateFlow() {
   const [error, setError] = useState<string | null>(null);
   const [demoLimited, setDemoLimited] = useState(false);
   const savedAtRef = useRef(0);
+  const labelRef = useRef("");
 
   // Restore a previously generated draft so leaving for /practice and coming
   // back doesn't wipe the page. Ignore drafts the user brought themselves.
@@ -37,6 +39,7 @@ export default function GenerateFlow() {
           setTone(stored.tone);
           setScript(stored.script);
           savedAtRef.current = stored.savedAt;
+          labelRef.current = stored.label ?? "";
         }
       })
       .catch((err) => reportClientError(err, { area: "generate:hydrate" }))
@@ -59,6 +62,7 @@ export default function GenerateFlow() {
         tone,
         savedAt: savedAtRef.current,
         source: "generated",
+        label: labelRef.current || undefined,
       }).catch((err) =>
         reportClientError(err, { area: "generate:draft-sync" }),
       );
@@ -89,6 +93,7 @@ export default function GenerateFlow() {
         throw new Error(data.error || `Request failed (${res.status}).`);
       }
       savedAtRef.current = Date.now();
+      labelRef.current = data.label || "";
       // Event only — the script text itself is never sent.
       track(EVENTS.scriptGenerated, { tone: tone || "none" });
       // Persist before showing the result so "Practice this script" always
@@ -99,6 +104,7 @@ export default function GenerateFlow() {
         tone,
         savedAt: savedAtRef.current,
         source: "generated",
+        label: data.label || undefined,
       });
       setScript(data.script);
     } catch (err) {
@@ -146,11 +152,19 @@ export default function GenerateFlow() {
       )}
 
       {script && !error && (
-        <ScriptResult
-          script={script}
-          loading={loading}
-          onRegenerate={generate}
-        />
+        <>
+          <ScriptResult
+            script={script}
+            loading={loading}
+            onRegenerate={generate}
+          />
+          <FeedbackWidget
+            surveyKey="script_generated_rating"
+            surveyName="Generated script rating"
+            question="How was this script?"
+            variant="inline"
+          />
+        </>
       )}
     </div>
   );
