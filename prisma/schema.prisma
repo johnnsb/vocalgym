@@ -1,0 +1,75 @@
+// Prisma schema for VocalGym.
+//
+// Two connections (see .env / .env.local):
+//   url       = DATABASE_URL_POOLED — pooled (Neon -pooler / PgBouncer), used by
+//               @prisma/client at runtime. Carries ?pgbouncer=true.
+//   directUrl = DATABASE_URL        — direct, used by `prisma migrate` /
+//               introspection.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL_POOLED")
+  directUrl = env("DATABASE_URL")
+}
+
+/// One row per browser. Identified by the `vg_sid` cookie (see lib/session.ts /
+/// middleware.ts) — the app has no accounts yet, so this is the unit of "a user".
+model Session {
+  id        String   @id
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// The single "current script" for this session: { script, situation, tone,
+  /// savedAt, source } — see StoredScript in lib/types.ts. Null until one is set.
+  currentScript Json?
+
+  /// The effectiveness rubric the user last set: { attributes, weights, custom }
+  /// — see RubricSelection in lib/types.ts. Null = fall back to the tone preset.
+  rubric Json?
+
+  attempts Attempt[]
+}
+
+/// One rehearsal take plus the coaching it got back. Newest 50 per session are
+/// kept (older ones are pruned on insert).
+model Attempt {
+  id        String   @id @default(cuid())
+  sessionId String
+  session   Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  script     String
+  situation  String  @default("")
+  tone       String  @default("")
+  transcript String
+  feedback   String
+
+  /// NonverbalMetrics | null (lib/types.ts) — camera-derived summary, no frames.
+  nonverbal Json?
+  /// EffectiveResult | null (lib/types.ts) — the client-computed score breakdown.
+  effective Json?
+
+  @@index([sessionId, createdAt])
+}
+
+/// "Get expert help" contact-form submissions, fulfilled manually via
+/// /admin/requests. Replaces the old .vocalgym-expert-requests.json file.
+model ExpertRequest {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  name      String
+  email     String
+  situation String
+}
+
+/// Single-row global counter for the demo usage cap (id is always 1). Replaces
+/// the old .vocalgym-usage.json file; the DB makes it durable + atomic.
+model UsageCounter {
+  id        Int      @id @default(1)
+  count     Int      @default(0)
+  updatedAt DateTime @updatedAt
+}

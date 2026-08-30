@@ -11,7 +11,7 @@ import {
 import { ACCEPTED_UPLOAD, extractScriptText } from "@/lib/scriptImport";
 import {
   broadcastToneChange,
-  loadCurrentScript,
+  loadState,
   saveCurrentScript,
 } from "@/lib/practiceStore";
 import { reportClientError } from "@/lib/clientErrors";
@@ -37,18 +37,29 @@ export default function BringScriptFlow() {
   const methodRef = useRef<"paste" | "upload">("paste");
 
   useEffect(() => {
-    const stored = loadCurrentScript();
-    if (stored) {
-      setExisting(stored);
-      setMode("existing");
-    } else {
-      setMode("compose");
-    }
+    let cancelled = false;
+    loadState()
+      .then((state) => {
+        if (cancelled) return;
+        if (state.currentScript) {
+          setExisting(state.currentScript);
+          setMode("existing");
+        } else {
+          setMode("compose");
+        }
+      })
+      .catch((err) => {
+        reportClientError(err, { area: "script:hydrate" });
+        if (!cancelled) setMode("compose");
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  const persist = (text: string, t: Tone | "") => {
+  const persist = (text: string, t: Tone | ""): Promise<void> => {
     if (!savedAtRef.current) savedAtRef.current = Date.now();
-    saveCurrentScript({
+    return saveCurrentScript({
       script: text,
       situation: "",
       tone: t,
@@ -57,11 +68,16 @@ export default function BringScriptFlow() {
     });
   };
 
-  // Persist composed drafts as they change, so leaving the page doesn't lose
-  // them. Only kicks in once you're actually composing something.
+  // Persist composed drafts as they change (debounced), so leaving the page
+  // doesn't lose them. Only kicks in once you're actually composing something.
   useEffect(() => {
     if (mode !== "compose" || !script.trim()) return;
-    persist(script.trim(), tone);
+    const id = setTimeout(() => {
+      void persist(script.trim(), tone).catch((err) =>
+        reportClientError(err, { area: "script:draft-sync" }),
+      );
+    }, 800);
+    return () => clearTimeout(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, script, tone]);
 
@@ -108,10 +124,17 @@ export default function BringScriptFlow() {
     setMode("compose");
   }
 
-  function goPractice() {
+  async function goPractice() {
     const trimmed = script.trim();
     if (!trimmed) return;
-    persist(trimmed, tone);
+    // Await the save so /practice's hydration fetch sees this script.
+    try {
+      await persist(trimmed, tone);
+    } catch (err) {
+      reportClientError(err, { area: "script:go-practice" });
+      setError("Couldn't save your script. Please try again.");
+      return;
+    }
     // Event only — the script text is never sent.
     track(EVENTS.scriptProvided, {
       tone: tone || "none",

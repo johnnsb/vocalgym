@@ -6,7 +6,7 @@ import ScriptResult from "./ScriptResult";
 import type { GenerateScriptResponse, Tone } from "@/lib/types";
 import {
   broadcastToneChange,
-  loadCurrentScript,
+  loadState,
   saveCurrentScript,
 } from "@/lib/practiceStore";
 import { reportClientError } from "@/lib/clientErrors";
@@ -27,25 +27,43 @@ export default function GenerateFlow() {
   // Restore a previously generated draft so leaving for /practice and coming
   // back doesn't wipe the page. Ignore drafts the user brought themselves.
   useEffect(() => {
-    const stored = loadCurrentScript();
-    if (stored && stored.source !== "uploaded") {
-      setSituation(stored.situation);
-      setTone(stored.tone);
-      setScript(stored.script);
-      savedAtRef.current = stored.savedAt;
-    }
-    setHydrated(true);
+    let cancelled = false;
+    loadState()
+      .then((state) => {
+        if (cancelled) return;
+        const stored = state.currentScript;
+        if (stored && stored.source !== "uploaded") {
+          setSituation(stored.situation);
+          setTone(stored.tone);
+          setScript(stored.script);
+          savedAtRef.current = stored.savedAt;
+        }
+      })
+      .catch((err) => reportClientError(err, { area: "generate:hydrate" }))
+      .finally(() => {
+        if (!cancelled) setHydrated(true);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
+  // Debounced draft sync — leaving the page mid-edit shouldn't lose the draft,
+  // but we don't want a network write per keystroke.
   useEffect(() => {
     if (!hydrated || !script) return;
-    saveCurrentScript({
-      script,
-      situation,
-      tone,
-      savedAt: savedAtRef.current,
-      source: "generated",
-    });
+    const id = setTimeout(() => {
+      void saveCurrentScript({
+        script,
+        situation,
+        tone,
+        savedAt: savedAtRef.current,
+        source: "generated",
+      }).catch((err) =>
+        reportClientError(err, { area: "generate:draft-sync" }),
+      );
+    }, 800);
+    return () => clearTimeout(id);
   }, [hydrated, script, situation, tone]);
 
   async function generate() {
@@ -73,14 +91,16 @@ export default function GenerateFlow() {
       savedAtRef.current = Date.now();
       // Event only — the script text itself is never sent.
       track(EVENTS.scriptGenerated, { tone: tone || "none" });
-      setScript(data.script);
-      saveCurrentScript({
+      // Persist before showing the result so "Practice this script" always
+      // finds it server-side.
+      await saveCurrentScript({
         script: data.script,
         situation,
         tone,
         savedAt: savedAtRef.current,
         source: "generated",
       });
+      setScript(data.script);
     } catch (err) {
       reportClientError(err, { area: "generate-script:client" });
       setError(err instanceof Error ? err.message : "Something went wrong.");

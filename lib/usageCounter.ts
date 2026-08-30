@@ -1,21 +1,15 @@
-import { promises as fs } from "fs";
-import path from "path";
+import { prisma } from "./prisma";
 
 /**
- * Dead-simple shared request counter for the demo phase — protects against a
- * shared link running up an unexpected Anthropic bill. NOT production rate
- * limiting: it's a single global count with no per-user/IP tracking, and under
- * concurrency it can overshoot the limit by a few.
+ * Shared request counter for the demo phase — protects against a shared link
+ * running up an unexpected Anthropic bill. NOT production rate limiting: it's a
+ * single global count with no per-user/IP tracking.
  *
- * Persistence is a JSON file so the count survives a server restart. That works
- * for local `next start` and long-running/self-hosted deploys. On Vercel's
- * serverless filesystem the file isn't durable across cold starts — point
- * USAGE_COUNTER_FILE at /tmp for per-instance protection, or swap in Vercel KV.
+ * Backed by a single `UsageCounter` row (id = 1) in Postgres, so it's durable
+ * across restarts / serverless cold starts and the increment is atomic.
  */
 
-const COUNTER_FILE =
-  process.env.USAGE_COUNTER_FILE ||
-  path.join(process.cwd(), ".vocalgym-usage.json");
+const ROW_ID = 1;
 
 export function usageLimit(): number {
   const raw = Number(process.env.DEMO_REQUEST_LIMIT ?? "");
@@ -29,33 +23,6 @@ export interface UsageStatus {
   remaining: number | null; // null when unlimited
 }
 
-async function readCount(): Promise<number> {
-  try {
-    const parsed = JSON.parse(await fs.readFile(COUNTER_FILE, "utf8")) as {
-      count?: unknown;
-    };
-    const n = parsed.count;
-    return typeof n === "number" && Number.isFinite(n) && n >= 0
-      ? Math.floor(n)
-      : 0;
-  } catch {
-    return 0;
-  }
-}
-
-async function writeCount(count: number): Promise<void> {
-  try {
-    await fs.writeFile(
-      COUNTER_FILE,
-      JSON.stringify({ count, updatedAt: new Date().toISOString() }, null, 2),
-      "utf8",
-    );
-  } catch {
-    // read-only FS (e.g. Vercel) — the counter just won't persist; never fail
-    // the request over it.
-  }
-}
-
 function status(count: number, limit: number): UsageStatus {
   return {
     count,
@@ -65,6 +32,16 @@ function status(count: number, limit: number): UsageStatus {
   };
 }
 
+async function readCount(): Promise<number> {
+  try {
+    const row = await prisma.usageCounter.findUnique({ where: { id: ROW_ID } });
+    return row?.count ?? 0;
+  } catch {
+    // DB unreachable — treat as 0 so the cap never *blocks* on an outage.
+    return 0;
+  }
+}
+
 /** Read the current usage without changing it (for the admin endpoint). */
 export async function getUsage(): Promise<UsageStatus> {
   return status(await readCount(), usageLimit());
@@ -72,23 +49,48 @@ export async function getUsage(): Promise<UsageStatus> {
 
 /**
  * Call once per billable request, before hitting Anthropic.
- * - `allowed: false` → the limit was already reached; the request was NOT
- *   counted and the caller should bail out without calling the model.
+ * - `allowed: false` → the limit was already reached; NOT counted, caller bails.
  * - `allowed: true`  → counted; proceed.
  */
 export async function recordRequest(): Promise<
   { allowed: boolean } & UsageStatus
 > {
   const limit = usageLimit();
-  const count = await readCount();
 
-  if (limit > 0 && count >= limit) {
-    console.warn(`[vocalgym] demo request blocked — at limit ${count}/${limit}`);
-    return { allowed: false, ...status(count, limit) };
+  let count: number;
+  try {
+    const row = await prisma.usageCounter.upsert({
+      where: { id: ROW_ID },
+      create: { id: ROW_ID, count: 1 },
+      update: { count: { increment: 1 } },
+    });
+    count = row.count;
+  } catch (err) {
+    // Never fail a request because the counter is down.
+    console.warn(
+      `[vocalgym] usage counter unavailable, allowing request: ${
+        err instanceof Error ? err.message : String(err)
+      }`,
+    );
+    return { allowed: true, ...status(0, limit) };
   }
 
-  const next = count + 1;
-  await writeCount(next);
-  console.log(`[vocalgym] demo usage ${next}/${limit || "∞"}`);
-  return { allowed: true, ...status(next, limit) };
+  if (limit > 0 && count > limit) {
+    // We just incremented past the limit — undo it and block.
+    try {
+      await prisma.usageCounter.update({
+        where: { id: ROW_ID },
+        data: { count: { decrement: 1 } },
+      });
+    } catch {
+      /* best effort */
+    }
+    console.warn(
+      `[vocalgym] demo request blocked — at limit ${limit}/${limit}`,
+    );
+    return { allowed: false, ...status(limit, limit) };
+  }
+
+  console.log(`[vocalgym] demo usage ${count}/${limit || "∞"}`);
+  return { allowed: true, ...status(count, limit) };
 }

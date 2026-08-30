@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { expertRequestsFilePath, loadExpertRequests } from "@/lib/expertRequests";
+import { expertRequestsLocation, loadExpertRequests } from "@/lib/expertRequests";
 
 export const metadata: Metadata = { title: "Expert requests · admin" };
 export const dynamic = "force-dynamic";
@@ -29,8 +29,7 @@ export default async function AdminRequestsPage({
     <main className="mx-auto max-w-4xl px-4 py-12">
       <h1 className="text-2xl font-bold tracking-tight">Expert requests</h1>
       <p className="mt-1 text-sm text-slate-500">
-        {requests.length} total · stored in{" "}
-        <code>{expertRequestsFilePath()}</code>
+        {requests.length} total · {expertRequestsLocation()}
         {!required && " · set USAGE_ADMIN_TOKEN to lock this page down"}
       </p>
 

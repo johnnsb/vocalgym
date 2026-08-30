@@ -9,12 +9,8 @@ import {
   type Tone,
 } from "@/lib/types";
 import { ATTRIBUTE_RUBRIC, normalizeSelection, rubricPreset } from "@/lib/rubric";
-import {
-  loadCurrentScript,
-  loadRubric,
-  saveRubric,
-  TONE_CHANGE_EVENT,
-} from "@/lib/practiceStore";
+import { loadState, saveRubric, TONE_CHANGE_EVENT } from "@/lib/practiceStore";
+import { reportClientError } from "@/lib/clientErrors";
 
 const MAX = 4;
 
@@ -34,18 +30,34 @@ export default function RubricPicker() {
   const [sel, setSel] = useState<RubricSelection>(() => rubricPreset(""));
 
   useEffect(() => {
-    const t = loadCurrentScript()?.tone ?? "";
-    setTone(t);
-    const stored = loadRubric();
-    setSel(stored?.custom ? normalizeSelection(stored) : rubricPreset(t));
+    let cancelled = false;
 
     const onTone = (e: Event) => {
       const d = (e as CustomEvent).detail;
       setTone(typeof d === "string" ? (d as Tone | "") : "");
     };
     window.addEventListener(TONE_CHANGE_EVENT, onTone);
-    setHydrated(true);
-    return () => window.removeEventListener(TONE_CHANGE_EVENT, onTone);
+
+    loadState()
+      .then((state) => {
+        if (cancelled) return;
+        const t = state.currentScript?.tone ?? "";
+        setTone(t);
+        setSel(
+          state.rubric?.custom
+            ? normalizeSelection(state.rubric)
+            : rubricPreset(t),
+        );
+      })
+      .catch((err) => reportClientError(err, { area: "rubric:hydrate" }))
+      .finally(() => {
+        if (!cancelled) setHydrated(true);
+      });
+
+    return () => {
+      cancelled = true;
+      window.removeEventListener(TONE_CHANGE_EVENT, onTone);
+    };
   }, []);
 
   // Retune to the tone's preset whenever the tone changes — unless the user has
@@ -55,14 +67,20 @@ export default function RubricPicker() {
     setSel((prev) => {
       if (prev.custom) return prev;
       const next = rubricPreset(tone);
-      saveRubric(next);
+      persistRubric(next);
       return next;
     });
   }, [tone, hydrated]);
 
+  function persistRubric(next: RubricSelection) {
+    void saveRubric(next).catch((err) =>
+      reportClientError(err, { area: "rubric:save" }),
+    );
+  }
+
   function commit(next: RubricSelection) {
     setSel(next);
-    saveRubric(next);
+    persistRubric(next);
   }
 
   function toggle(attr: RubricAttribute) {

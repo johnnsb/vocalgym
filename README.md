@@ -4,14 +4,16 @@ Practice for the conversations that matter. The landing page (`/`) branches into
 three paths: **bring your own words** (`/script` — paste or upload a `.txt` /
 `.md` / `.pdf`), **have us write them** (`/generate` — describe the situation,
 pick an optional tone, get a script), or **get expert guidance** (`/experts` — a
-stub for now). All paths lead to the same rehearsal step.
+contact form; a human follows up with a tailored script). The first two lead
+straight to the rehearsal step.
 
 Then open **Practice**: record yourself running the script, review the
 speech-to-text transcript, and get coaching notes from Claude on what landed and
 what to tighten. Optionally turn on your camera for a rough read on eye contact,
 posture, and expressiveness — analyzed in the browser with MediaPipe, so only the
-summary numbers are ever sent. Past attempts are kept in your browser
-(localStorage).
+summary numbers are ever sent. Your current script, rubric, and past attempts are
+saved server-side in Postgres, scoped to an anonymous per-browser session cookie
+(no accounts yet).
 
 On the script-setup pages (`/generate`, `/script`), "what does *effective* mean here?" is pre-tuned to the
 tone/context you picked (a *high-stakes* talk is scored mostly on staying
@@ -22,7 +24,7 @@ those qualities, and the coaching targets the quality weighted highest that
 scored lowest.
 
 Built with Next.js 14 (App Router), TypeScript, Tailwind CSS, the Anthropic SDK,
-and MediaPipe Tasks Vision.
+Prisma + Postgres, and MediaPipe Tasks Vision.
 
 ## Getting started
 
@@ -41,7 +43,20 @@ and MediaPipe Tasks Vision.
 
    Create a key at <https://console.anthropic.com/settings/keys>.
 
-3. Run the dev server:
+3. Point it at a Postgres database (the app stores your script, rubric, and
+   attempts there):
+
+   ```bash
+   # in BOTH .env and .env.local (the Prisma CLI only reads .env):
+   #   DATABASE_URL=<direct connection string>
+   #   DATABASE_URL_POOLED=<pooled connection string>   # ?pgbouncer=true for PgBouncer/Neon
+   npm run db:deploy      # apply migrations to the database
+   ```
+
+   Any Postgres works; Neon is what this repo is set up against. See
+   **Database** below.
+
+4. Run the dev server:
 
    ```bash
    npm run dev
@@ -56,9 +71,16 @@ instrumentation.ts                 Sentry server/edge init (Next 14 hook)
 instrumentation-client.ts          Sentry browser init
 sentry.server.config.ts            \
 sentry.edge.config.ts               } Sentry.init() per runtime (no-op without DSN)
+middleware.ts                      Ensures the anonymous `vg_sid` session cookie
+prisma/
+  schema.prisma                    Session / Attempt / ExpertRequest / UsageCounter
+  migrations/                      Committed SQL migrations (prisma migrate)
 app/
   api/generate-script/route.ts     POST endpoint that calls the Claude API
   api/practice-feedback/route.ts   POST endpoint: transcript + script -> coaching
+  api/state/route.ts               GET session state (script+rubric+attempts); PATCH to update
+  api/attempts/route.ts            POST save an attempt; DELETE clear all
+  api/attempts/[id]/route.ts       DELETE one attempt (session-scoped)
   api/usage-count/route.ts         GET the demo counter (see "Demo usage cap")
   api/expert-request/route.ts      POST save an expert-help request; GET lists them
   global-error.tsx                 Catches React render crashes -> Sentry
@@ -92,25 +114,68 @@ lib/
   anthropic.ts                     Anthropic client + generateScript() / generatePracticeFeedback()
   prompt.ts                        System prompts + prompt builders
   types.ts                         Shared types (tones, metrics, rubric, signals, score)
-  practiceStore.ts                 localStorage helpers (current script + attempts + rubric)
+  practiceStore.ts                 Client fetch wrapper over /api/state + /api/attempts
+  session.ts                       getSessionId() / ensureSession() — reads the vg_sid cookie
+  sessionState.server.ts           Server data layer: get/patch state, add/remove/clear attempts
   nonverbal.ts                     Pure: summarize webcam samples, sanitize, format for prompt
   mediapipe.ts                     NonverbalAnalyzer — lazy-loads MediaPipe, one frame -> metrics
   audioMeter.ts                    Web Audio RMS meter -> rough volume / steadiness summary
   rubric.ts                        Pure: attribute->signal rubric, signal + Effective computation
-  usageCounter.ts                  File-backed shared request counter for the demo cap
+  usageCounter.ts                  Demo request cap — atomic counter in the UsageCounter row
   scriptImport.ts                  Extract text from an uploaded .txt / .md / .pdf (pdf.js)
   logger.ts                        Structured console logging for the API routes
   verifyOutput.ts                  Shape checks on model output before it's returned
   clientErrors.ts                  Lazy Sentry capture for the frontend (DSN-gated)
   analytics.ts                     Lazy PostHog wrapper: track() / pageviews / EVENTS (key-gated)
-  expertRequests.ts                File-backed store for "get expert help" requests
+  expertRequests.ts                ExpertRequest table access for "get expert help"
+  prisma.ts                        Shared PrismaClient singleton (HMR-safe); pooled at runtime
 ```
 
 ## Configuration
 
-- **Model** — set in `lib/anthropic.ts` (`MODEL`). Defaults to `claude-opus-5`;
-  change to `claude-sonnet-5` for lower cost.
+- **Model** — set in `lib/anthropic.ts` (`MODEL`). Currently `claude-sonnet-5`.
 - **API key** — read from `ANTHROPIC_API_KEY` at request time. Never hardcoded.
+
+## Database (Prisma + Postgres)
+
+The current script, rubric, practice attempts, expert-help requests, and the
+demo usage counter all live in Postgres. `prisma/schema.prisma` models:
+
+| Model | Notes |
+| --- | --- |
+| `Session` | one row per browser (`vg_sid` cookie). `currentScript` + `rubric` are `Json?` blobs. |
+| `Attempt` | FK → `Session` (cascade delete). Newest 50 per session are kept. |
+| `ExpertRequest` | `/experts` form submissions. |
+| `UsageCounter` | single row (`id = 1`) for the demo cap. |
+
+Two connection strings, both secret:
+
+| Env var | schema field | Used for |
+| --- | --- | --- |
+| `DATABASE_URL_POOLED` | `url` | `@prisma/client` at runtime (pooled — Neon `-pooler` / PgBouncer; carries `?pgbouncer=true`) |
+| `DATABASE_URL` | `directUrl` | `prisma migrate` and introspection (direct connection) |
+
+They live in **`.env`** (so the Prisma CLI, which only reads `.env`, picks them
+up) and are mirrored in `.env.local` for the Next runtime. If your provider has
+no separate pooled endpoint, set both to the same string.
+
+```bash
+npm run db:migrate -- --name <change>   # create + apply a migration (dev)
+npm run db:deploy                        # apply pending migrations (prod/CI)
+npm run db:studio                        # browse the data
+```
+
+`npm run build` runs `prisma generate` first; `postinstall` runs it too.
+
+**Identity:** `middleware.ts` sets an httpOnly `vg_sid` cookie (random UUID) on
+every request and forwards it via an `x-vg-sid` header. `lib/session.ts`
+`getSessionId()` reads it. There are no accounts yet — clearing cookies or
+switching browsers starts a fresh session.
+
+**Data access:** server code goes through `lib/sessionState.server.ts` (which
+uses the `import { prisma } from "@/lib/prisma"` singleton — never
+`new PrismaClient()`). The client goes through `lib/practiceStore.ts`, an async
+wrapper over `GET/PATCH /api/state` and `POST/DELETE /api/attempts`.
 
 ## Observability
 
@@ -119,15 +184,17 @@ lib/
   **zero** client-bundle weight (`next.config.mjs` only wires in the build
   plugin when the DSN is present). With it set: `instrumentation.ts` +
   `sentry.{server,edge}.config.ts` + `instrumentation-client.ts` init the SDK,
-  `app/global-error.tsx` catches React render crashes, both API routes call
+  `app/global-error.tsx` catches React render crashes, the API routes call
   `Sentry.captureException` / `captureMessage` in their catch and verification
   paths, and the frontend reports unexpected fetch errors via
   `lib/clientErrors.ts` (lazy-loads the SDK only when a DSN is configured). No
   source-map upload is configured — add `SENTRY_ORG` / `SENTRY_PROJECT` /
   `SENTRY_AUTH_TOKEN` and drop `sourcemaps.disable` for readable stack traces.
-- **Structured logs** — both API routes log `request received` → `anthropic
-  call started` → `succeeded` / `failed` → `response sent`, each line prefixed
-  `[<route> <request-id>]` (see `lib/logger.ts`). Plain `console` — visible in
+- **Structured logs** — the two Claude routes (`generate-script`,
+  `practice-feedback`) log `request received` → `anthropic call started` →
+  `succeeded` / `failed` → `response sent`; `expert-request` logs its own
+  lifecycle; `state` / `attempts` log failures only. Every line is prefixed
+  `[<route> <request-id>]` (see `lib/logger.ts`), plain `console` — visible in
   `npm run dev` output or your host's function logs.
 - **Output verification** — before returning, `lib/verifyOutput.ts` checks the
   practice-feedback response contains all 5 sections (Overall / What landed /
@@ -181,24 +248,19 @@ it can overshoot by a few.
   output or your host's function logs). To lock the endpoint down, set
   `USAGE_ADMIN_TOKEN` and call it as `/api/usage-count?token=YOUR_TOKEN` (or send
   an `x-admin-token` header).
-- **Reset the count** — delete the counter file (`.vocalgym-usage.json` in the
-  project root by default) or write `{"count":0}` into it, then it starts from
-  zero on the next request. No restart needed.
-- **Where it's stored** — a JSON file at `.vocalgym-usage.json`, overridable with
-  `USAGE_COUNTER_FILE`. This persists across restarts for local `next start` and
-  long-running / self-hosted deploys. Vercel's serverless filesystem is **not**
-  durable across cold starts — for a Vercel demo, set `USAGE_COUNTER_FILE=/tmp/
-  vocalgym-usage.json` (per-instance protection, resets on cold start) or replace
-  the file I/O in `lib/usageCounter.ts` with Vercel KV.
+- **Reset the count** — set the `UsageCounter` row back to zero, e.g. in
+  `npm run db:studio`, or:
+  `UPDATE "UsageCounter" SET count = 0 WHERE id = 1;`
+- **Where it's stored** — the single-row `UsageCounter` table (`id = 1`).
+  `recordRequest()` does an atomic `upsert … { increment: 1 }`, so it's durable
+  across restarts / serverless cold starts and roughly concurrency-safe.
 
 ## Expert-help requests
 
 The "Get expert help" landing path (`/experts`) is a **contact form, not an AI
-feature**. On submit, `POST /api/expert-request` appends `{ id, createdAt, name,
-email, situation }` to `.vocalgym-expert-requests.json` (override with
-`EXPERT_REQUESTS_FILE`; same Vercel-filesystem caveat as the usage counter) and
-logs `[expert-request <id>] saved …`. The user sees a "we'll get back to you"
-confirmation.
+feature**. On submit, `POST /api/expert-request` inserts an `ExpertRequest` row
+(`id, createdAt, name, email, situation`) and logs `[expert-request <id>] saved
+…`. The user sees a "we'll get back to you" confirmation.
 
 Read submitted requests at **`/admin/requests`** (or `GET /api/expert-request`
 for JSON). Both are gated by `USAGE_ADMIN_TOKEN` when it's set — `?token=…` or an
@@ -208,18 +270,19 @@ paste into `/script`.
 
 ## Notes
 
-- No auth or database. The generated script and past practice attempts
-  (transcript + coaching notes + any nonverbal summary) live in the browser's
-  localStorage only.
+- No auth yet. The current script, rubric, and past practice attempts
+  (transcript + coaching notes + any nonverbal summary) are stored in Postgres,
+  scoped to the anonymous `vg_sid` session cookie.
 - Speech-to-text uses the browser's Web Speech API (Chrome/Edge/Safari). Where
   it's unavailable, the transcript box still accepts typed input.
 - Recorded audio is playable during the session but is not saved.
-- **Upload a script** ("or Upload a script" next to Generate): `.txt` / `.md`
-  are read directly; `.pdf` is parsed with `pdfjs-dist`, dynamically imported
-  only on first PDF use (its worker loads from jsDelivr, pinned to the installed
-  version in `lib/scriptImport.ts`). Everything runs client-side — the file is
-  never uploaded. Scanned/image PDFs have no selectable text and are rejected
-  with a "paste it instead" message; imports are trimmed to 8,000 characters.
+- **Upload a script** (the "Upload a file" button next to the paste box on
+  `/script`): `.txt` / `.md` are read directly; `.pdf` is parsed with
+  `pdfjs-dist`, dynamically imported only on first PDF use (its worker loads from
+  jsDelivr, pinned to the installed version in `lib/scriptImport.ts`). Everything
+  runs client-side — the file itself is never sent anywhere. Scanned/image PDFs
+  have no selectable text and are rejected with a "paste it instead" message;
+  imports are trimmed to 8,000 characters.
 
 ### Nonverbal analysis (optional camera)
 
@@ -257,9 +320,9 @@ paste into `/script`.
 
   Changing the tone dropdown retunes the picker live (via a same-tab
   `vocalgym:tone-change` event). Editing any chip or weight flips it to a
-  **custom** rubric (`custom: true`, saved to `localStorage['vocalgym:rubric']`)
-  that no longer follows the tone; a "Use the … preset" link switches back.
-  `resolveRubric()` in `lib/practiceStore.ts` is the source of truth on
+  **custom** rubric (`custom: true`, saved via `PATCH /api/state`) that no longer
+  follows the tone; a "Use the … preset" link switches back.
+  `resolveRubric(state)` in `lib/practiceStore.ts` is the source of truth on
   `/practice`: your custom rubric if you made one, otherwise the preset for the
   script's tone.
 - `lib/rubric.ts` also holds the signal rubric: each quality is a weighted blend of

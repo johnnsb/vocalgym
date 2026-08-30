@@ -22,15 +22,18 @@ import {
   type Tone,
 } from "@/lib/types";
 import {
+  addAttempt,
   clearAttempts,
   deleteAttempt,
-  loadAttempts,
-  loadCurrentScript,
+  loadState,
   resolveRubric,
-  newId,
-  saveAttempt,
 } from "@/lib/practiceStore";
-import { ATTRIBUTE_RUBRIC, computeEffective, computeSignals } from "@/lib/rubric";
+import {
+  ATTRIBUTE_RUBRIC,
+  computeEffective,
+  computeSignals,
+  rubricPreset,
+} from "@/lib/rubric";
 import { reportClientError } from "@/lib/clientErrors";
 import { EVENTS, track } from "@/lib/analytics";
 import FeedbackWidget from "./FeedbackWidget";
@@ -60,26 +63,42 @@ export default function PracticeSession() {
   const sessionTracked = useRef(false);
 
   useEffect(() => {
-    const stored = loadCurrentScript();
-    if (stored) {
-      setScript(stored.script);
-      setSituation(stored.situation);
-      setTone(stored.tone);
-      // Event only — no script text. Marks entry into the practice step.
-      // Ref-guarded so StrictMode's double mount doesn't double-count.
-      if (!sessionTracked.current) {
-        sessionTracked.current = true;
-        track(EVENTS.practiceSessionStarted, {
-          tone: stored.tone || "none",
-          source: stored.source || "unknown",
-        });
-      }
-    } else {
-      setEditingScript(true);
-    }
-    setRubric(resolveRubric());
-    setAttempts(loadAttempts());
-    setHydrated(true);
+    let cancelled = false;
+    loadState()
+      .then((state) => {
+        if (cancelled) return;
+        const stored = state.currentScript;
+        if (stored) {
+          setScript(stored.script);
+          setSituation(stored.situation);
+          setTone(stored.tone);
+          // Event only — no script text. Marks entry into the practice step.
+          // Ref-guarded so StrictMode's double mount doesn't double-count.
+          if (!sessionTracked.current) {
+            sessionTracked.current = true;
+            track(EVENTS.practiceSessionStarted, {
+              tone: stored.tone || "none",
+              source: stored.source || "unknown",
+            });
+          }
+        } else {
+          setEditingScript(true);
+        }
+        setRubric(resolveRubric(state));
+        setAttempts(state.attempts);
+      })
+      .catch((err) => {
+        reportClientError(err, { area: "practice:hydrate" });
+        if (cancelled) return;
+        setEditingScript(true);
+        setRubric(rubricPreset(""));
+      })
+      .finally(() => {
+        if (!cancelled) setHydrated(true);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const speechSupported = useMemo(
@@ -137,18 +156,21 @@ export default function PracticeSession() {
         effective_band: effective ? effective.label : null,
       });
 
-      const attempt: PracticeAttempt = {
-        id: newId(),
-        createdAt: Date.now(),
-        script: trimmedScript,
-        situation,
-        tone,
-        transcript: trimmedTranscript,
-        feedback: data.feedback,
-        nonverbal,
-        effective,
-      };
-      setAttempts(saveAttempt(attempt));
+      try {
+        const saved = await addAttempt({
+          script: trimmedScript,
+          situation,
+          tone,
+          transcript: trimmedTranscript,
+          feedback: data.feedback,
+          nonverbal,
+          effective,
+        });
+        setAttempts((prev) => [saved, ...prev].slice(0, 50));
+      } catch (saveErr) {
+        // Non-fatal — the coaching is already on screen; just log the miss.
+        reportClientError(saveErr, { area: "practice:save-attempt" });
+      }
     } catch (err) {
       reportClientError(err, { area: "practice-feedback:client" });
       setError(err instanceof Error ? err.message : "Something went wrong.");
@@ -159,12 +181,23 @@ export default function PracticeSession() {
   }
 
   function removeAttempt(id: string) {
-    setAttempts(deleteAttempt(id));
+    setAttempts((prev) => prev.filter((a) => a.id !== id)); // optimistic
+    deleteAttempt(id).catch((err) => {
+      reportClientError(err, { area: "practice:delete-attempt" });
+      loadState(true)
+        .then((s) => setAttempts(s.attempts))
+        .catch(() => {});
+    });
   }
 
   function removeAllAttempts() {
-    clearAttempts();
-    setAttempts([]);
+    setAttempts([]); // optimistic
+    clearAttempts().catch((err) => {
+      reportClientError(err, { area: "practice:clear-attempts" });
+      loadState(true)
+        .then((s) => setAttempts(s.attempts))
+        .catch(() => {});
+    });
   }
 
   if (!hydrated) {

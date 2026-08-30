@@ -8,10 +8,9 @@ import type {
 } from "./types";
 import { normalizeSelection, rubricPreset } from "./rubric";
 
-const CURRENT_SCRIPT_KEY = "vocalgym:current-script";
-const ATTEMPTS_KEY = "vocalgym:attempts";
-const RUBRIC_KEY = "vocalgym:rubric";
-const MAX_ATTEMPTS = 50;
+// Client access to the session-scoped store (Postgres, via /api/state and
+// /api/attempts). Was localStorage; the shape of what callers get back is the
+// same. Every function that touches the server returns a Promise.
 
 /** Same-tab signal: the tone/context dropdown changed. Detail is `Tone | ""`. */
 export const TONE_CHANGE_EVENT = "vocalgym:tone-change";
@@ -21,102 +20,130 @@ export function broadcastToneChange(tone: Tone | ""): void {
   try {
     window.dispatchEvent(new CustomEvent(TONE_CHANGE_EVENT, { detail: tone }));
   } catch {
-    /* non-browser / no CustomEvent — picker still reads it on next load */
+    /* non-browser / no CustomEvent */
   }
 }
 
-function storage(): Storage | null {
-  try {
-    if (typeof window === "undefined") return null;
-    return window.localStorage;
-  } catch {
-    return null;
-  }
+export interface SessionState {
+  currentScript: StoredScript | null;
+  rubric: RubricSelection | null;
+  attempts: PracticeAttempt[];
 }
 
-export function saveCurrentScript(entry: StoredScript): void {
-  const s = storage();
-  if (!s) return;
-  try {
-    s.setItem(CURRENT_SCRIPT_KEY, JSON.stringify(entry));
-  } catch {
-    /* quota or serialization failure — non-fatal */
-  }
+const EMPTY: SessionState = {
+  currentScript: null,
+  rubric: null,
+  attempts: [],
+};
+
+// Tiny in-flight cache so that a page mounting two consumers (e.g. /generate
+// renders GenerateFlow + RubricPicker) issues one GET, not two. Busted on write.
+let cache: { at: number; promise: Promise<SessionState> } | null = null;
+const CACHE_MS = 1500;
+
+function coerceState(raw: unknown): SessionState {
+  if (!raw || typeof raw !== "object") return EMPTY;
+  const r = raw as Partial<SessionState>;
+  return {
+    currentScript:
+      r.currentScript && typeof r.currentScript === "object"
+        ? (r.currentScript as StoredScript)
+        : null,
+    rubric:
+      r.rubric && typeof r.rubric === "object"
+        ? (r.rubric as RubricSelection)
+        : null,
+    attempts: Array.isArray(r.attempts)
+      ? (r.attempts as PracticeAttempt[]).filter(
+          (a) => a && typeof a.id === "string",
+        )
+      : [],
+  };
 }
 
-export function loadCurrentScript(): StoredScript | null {
-  const s = storage();
-  if (!s) return null;
-  try {
-    const raw = s.getItem(CURRENT_SCRIPT_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as Partial<StoredScript>;
-    if (typeof parsed.script !== "string" || !parsed.script) return null;
-    return {
-      script: parsed.script,
-      situation: typeof parsed.situation === "string" ? parsed.situation : "",
-      tone:
-        parsed.tone === "" || typeof parsed.tone === "string"
-          ? (parsed.tone as StoredScript["tone"])
-          : "",
-      savedAt: typeof parsed.savedAt === "number" ? parsed.savedAt : Date.now(),
-      source: parsed.source === "uploaded" ? "uploaded" : "generated",
-    };
-  } catch {
-    return null;
-  }
+/** Load the session's current script, rubric and attempts in one request. */
+export function loadState(force = false): Promise<SessionState> {
+  if (!force && cache && Date.now() - cache.at < CACHE_MS) return cache.promise;
+  const promise = fetch("/api/state", {
+    headers: { accept: "application/json" },
+  })
+    .then((r) => {
+      if (!r.ok) throw new Error(`GET /api/state -> ${r.status}`);
+      return r.json();
+    })
+    .then(coerceState)
+    .catch((err) => {
+      cache = null; // don't cache failures
+      throw err;
+    });
+  cache = { at: Date.now(), promise };
+  return promise;
 }
 
-export function loadAttempts(): PracticeAttempt[] {
-  const s = storage();
-  if (!s) return [];
-  try {
-    const raw = s.getItem(ATTEMPTS_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw) as unknown;
-    if (!Array.isArray(parsed)) return [];
-    return parsed.filter(isAttempt).sort((a, b) => b.createdAt - a.createdAt);
-  } catch {
-    return [];
-  }
+function bustCache() {
+  cache = null;
 }
 
-export function saveAttempt(attempt: PracticeAttempt): PracticeAttempt[] {
-  const next = [attempt, ...loadAttempts()].slice(0, MAX_ATTEMPTS);
-  writeAttempts(next);
-  return next;
+async function patchState(patch: {
+  currentScript?: StoredScript | null;
+  rubric?: RubricSelection | null;
+}): Promise<void> {
+  bustCache();
+  const res = await fetch("/api/state", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(patch),
+  });
+  if (!res.ok) throw new Error(`PATCH /api/state -> ${res.status}`);
 }
 
-export function deleteAttempt(id: string): PracticeAttempt[] {
-  const next = loadAttempts().filter((a) => a.id !== id);
-  writeAttempts(next);
-  return next;
+export function saveCurrentScript(entry: StoredScript): Promise<void> {
+  return patchState({ currentScript: entry });
 }
 
-export function clearAttempts(): void {
-  writeAttempts([]);
+export function clearCurrentScript(): Promise<void> {
+  return patchState({ currentScript: null });
 }
 
-function writeAttempts(attempts: PracticeAttempt[]): void {
-  const s = storage();
-  if (!s) return;
-  try {
-    s.setItem(ATTEMPTS_KEY, JSON.stringify(attempts));
-  } catch {
-    /* non-fatal */
-  }
+export function saveRubric(selection: RubricSelection): Promise<void> {
+  return patchState({ rubric: selection });
 }
 
-function isAttempt(value: unknown): value is PracticeAttempt {
-  if (!value || typeof value !== "object") return false;
-  const v = value as Record<string, unknown>;
-  return (
-    typeof v.id === "string" &&
-    typeof v.createdAt === "number" &&
-    typeof v.script === "string" &&
-    typeof v.transcript === "string" &&
-    typeof v.feedback === "string"
-  );
+export interface NewAttempt {
+  script: string;
+  situation: string;
+  tone: Tone | "";
+  transcript: string;
+  feedback: string;
+  nonverbal?: PracticeAttempt["nonverbal"];
+  effective?: PracticeAttempt["effective"];
+}
+
+/** Save a rehearsal attempt; resolves to the stored row (with id + createdAt). */
+export async function addAttempt(input: NewAttempt): Promise<PracticeAttempt> {
+  bustCache();
+  const res = await fetch("/api/attempts", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) throw new Error(`POST /api/attempts -> ${res.status}`);
+  const data = (await res.json()) as { attempt: PracticeAttempt };
+  return data.attempt;
+}
+
+export async function deleteAttempt(id: string): Promise<void> {
+  bustCache();
+  const res = await fetch(`/api/attempts/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) throw new Error(`DELETE /api/attempts/${id} -> ${res.status}`);
+}
+
+export async function clearAttempts(): Promise<void> {
+  bustCache();
+  const res = await fetch("/api/attempts", { method: "DELETE" });
+  if (!res.ok) throw new Error(`DELETE /api/attempts -> ${res.status}`);
 }
 
 export function newId(): string {
@@ -130,50 +157,11 @@ export function newId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
-/** The effectiveness rubric the user last set on the home page. */
-export function saveRubric(selection: RubricSelection): void {
-  const s = storage();
-  if (!s) return;
-  try {
-    s.setItem(RUBRIC_KEY, JSON.stringify(selection));
-  } catch {
-    /* non-fatal */
-  }
-}
-
-/** Returns the raw stored selection (may be empty); `null` if nothing saved. */
-export function loadRubric(): RubricSelection | null {
-  const s = storage();
-  if (!s) return null;
-  try {
-    const raw = s.getItem(RUBRIC_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as Partial<RubricSelection>;
-    if (!Array.isArray(parsed.attributes)) return null;
-    return {
-      attributes: parsed.attributes.slice(0, 4) as RubricSelection["attributes"],
-      weights:
-        parsed.weights && typeof parsed.weights === "object"
-          ? (parsed.weights as Record<string, number>)
-          : {},
-      custom: parsed.custom === true,
-    };
-  } catch {
-    return null;
-  }
-}
-
-/** Same as loadRubric but always returns a usable, weight-normalised selection. */
-export function loadRubricNormalized(): RubricSelection {
-  return normalizeSelection(loadRubric());
-}
-
 /**
  * The rubric to actually score against: the user's hand-edited one if they made
- * it, otherwise the preset for whatever tone they picked for the current script.
+ * it, otherwise the preset for whatever tone the current script carries.
  */
-export function resolveRubric(): RubricSelection {
-  const stored = loadRubric();
-  if (stored?.custom) return normalizeSelection(stored);
-  return rubricPreset(loadCurrentScript()?.tone ?? "");
+export function resolveRubric(state: SessionState): RubricSelection {
+  if (state.rubric?.custom) return normalizeSelection(state.rubric);
+  return rubricPreset(state.currentScript?.tone ?? "");
 }
