@@ -13,7 +13,9 @@ signals — rolled up into a single "Effective" score.
   the current script, rubric, practice attempts, expert requests, and the demo
   usage counter — localStorage is no longer used for app data. The Prisma CLI
   reads `.env`, so the two `DATABASE_*` vars live there as well as `.env.local`.
-- Anthropic API (Claude Sonnet 5 default) for script generation and feedback
+- Anthropic API for script generation + feedback (`MODEL = claude-sonnet-5` in
+  `lib/anthropic.ts`) and for the tiny script-title task
+  (`LABEL_MODEL = claude-haiku-4-5-20251001`)
 - Web Speech API for live transcription during practice
 - MediaRecorder API for audio capture; Web Audio API (AnalyserNode/RMS) for a
   rough volume + steadiness read

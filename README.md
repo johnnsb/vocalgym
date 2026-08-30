@@ -112,7 +112,7 @@ components/
   PastAttempts.tsx                 Sidebar history, grouped by script (label header), rows collapsible
   FeedbackWidget.tsx               Dismissible smiley-rating PostHog survey (generate / practice / landing)
 lib/
-  anthropic.ts                     Anthropic client + generateScript() / generatePracticeFeedback()
+  anthropic.ts                     Anthropic client + generateScript() / generatePracticeFeedback() / generateScriptLabel()
   prompt.ts                        System prompts + prompt builders
   types.ts                         Shared types (tones, metrics, rubric, signals, score)
   practiceStore.ts                 Client fetch wrapper over /api/state + /api/attempts
