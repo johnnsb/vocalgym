@@ -10,7 +10,11 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.121.0",
+    "@mediapipe/tasks-vision": "^1.0.1",
+    "@sentry/nextjs": "^10.72.0",
     "next": "14.2.35",
+    "pdfjs-dist": "^6.2.108",
+    "posthog-js": "^1.422.5",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },

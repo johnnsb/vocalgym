@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import "./globals.css";
+import SiteHeader from "@/components/SiteHeader";
+import { AnalyticsProvider } from "./providers";
 
 export const metadata: Metadata = {
   title: "VocalGym",
@@ -12,7 +14,10 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
       <body className="min-h-screen bg-slate-50 text-slate-900 antialiased">
-        {children}
+        <AnalyticsProvider>
+          <SiteHeader />
+          {children}
+        </AnalyticsProvider>
       </body>
     </html>
   );

@@ -1,15 +1,28 @@
 # VocalGym
 
-Practice for the conversations that matter. Describe a situation, pick an
-optional tone, and VocalGym generates a short script and talking points you can
-rehearse out loud.
+Practice for the conversations that matter. The landing page (`/`) branches into
+three paths: **bring your own words** (`/script` — paste or upload a `.txt` /
+`.md` / `.pdf`), **have us write them** (`/generate` — describe the situation,
+pick an optional tone, get a script), or **get expert guidance** (`/experts` — a
+stub for now). All paths lead to the same rehearsal step.
 
 Then open **Practice**: record yourself running the script, review the
 speech-to-text transcript, and get coaching notes from Claude on what landed and
-what to tighten. Past attempts are kept in your browser (localStorage).
+what to tighten. Optionally turn on your camera for a rough read on eye contact,
+posture, and expressiveness — analyzed in the browser with MediaPipe, so only the
+summary numbers are ever sent. Past attempts are kept in your browser
+(localStorage).
 
-Built with Next.js 14 (App Router), TypeScript, Tailwind CSS, and the Anthropic
-SDK.
+On the script-setup pages (`/generate`, `/script`), "what does *effective* mean here?" is pre-tuned to the
+tone/context you picked (a *high-stakes* talk is scored mostly on staying
+composed and clear; a *personal* one on staying connected and warm; and so on).
+Adjust the qualities or weights and it becomes your own custom rubric. Each take
+gets one **Effective** score (0–100) rolled up from the measurable signals behind
+those qualities, and the coaching targets the quality weighted highest that
+scored lowest.
+
+Built with Next.js 14 (App Router), TypeScript, Tailwind CSS, the Anthropic SDK,
+and MediaPipe Tasks Vision.
 
 ## Getting started
 
@@ -39,25 +52,58 @@ SDK.
 ## Project structure
 
 ```
+instrumentation.ts                 Sentry server/edge init (Next 14 hook)
+instrumentation-client.ts          Sentry browser init
+sentry.server.config.ts            \
+sentry.edge.config.ts               } Sentry.init() per runtime (no-op without DSN)
 app/
   api/generate-script/route.ts     POST endpoint that calls the Claude API
   api/practice-feedback/route.ts   POST endpoint: transcript + script -> coaching
-  layout.tsx                       Root layout
-  page.tsx                         Home page
+  api/usage-count/route.ts         GET the demo counter (see "Demo usage cap")
+  api/expert-request/route.ts      POST save an expert-help request; GET lists them
+  global-error.tsx                 Catches React render crashes -> Sentry
+  layout.tsx                       Root layout (+ SiteHeader nav, AnalyticsProvider)
+  providers.tsx                    Client analytics bootstrap + route-change $pageview
+  page.tsx                         Landing page (tagline + 3 path cards)
+  generate/page.tsx                "Help me find the words" — GenerateFlow
+  script/page.tsx                  "Bring your own words" — BringScriptFlow
+  experts/page.tsx                 "Get expert help" — ExpertRequestForm (no AI)
+  admin/requests/page.tsx          Read submitted expert requests (token-gated)
+  faq/page.tsx, signin/page.tsx    Thin "coming soon" stubs
   practice/page.tsx                Practice route
   globals.css                      Tailwind entry point
 components/
-  ScriptGenerator.tsx              Client component: state + data fetching
-  ScriptForm.tsx                   Situation textarea + tone dropdown
+  SiteHeader.tsx                   Top nav (wordmark, How it works, FAQ, Sign in)
+  GenerateFlow.tsx                 AI-generate path: form + result + state restore
+  BringScriptFlow.tsx              Bring-your-own path: use existing / paste / upload
+  ExpertRequestForm.tsx            Expert-help contact form + confirmation
+  ScriptForm.tsx                   Situation textarea + quick-start examples + tone
   ScriptResult.tsx                 Rendered script with copy / regenerate / practice
+  RubricPicker.tsx                 Tone-tuned "effective" qualities, editable
   PracticeSession.tsx              Practice orchestrator: script, record, feedback, history
-  PracticeRecorder.tsx            MediaRecorder + Web Speech API capture
+  PracticeRecorder.tsx             Mic + optional camera capture; drives the samplers
   PracticeFeedback.tsx             Rendered coaching notes
+  FeedbackSections.tsx             Parses feedback markdown into color-coded sections
+  NonverbalSummary.tsx             Compact eye-contact / posture / expressiveness chips
+  EffectiveScore.tsx               The Effective score + per-attribute breakdown bars
+  PastAttempts.tsx                 Collapsible sidebar history
+  FeedbackWidget.tsx               Dismissible PostHog survey (inline on /practice, floating on /)
 lib/
   anthropic.ts                     Anthropic client + generateScript() / generatePracticeFeedback()
   prompt.ts                        System prompts + prompt builders
-  types.ts                         Shared types (tones, request/response shapes)
-  practiceStore.ts                 localStorage helpers (current script + attempts)
+  types.ts                         Shared types (tones, metrics, rubric, signals, score)
+  practiceStore.ts                 localStorage helpers (current script + attempts + rubric)
+  nonverbal.ts                     Pure: summarize webcam samples, sanitize, format for prompt
+  mediapipe.ts                     NonverbalAnalyzer — lazy-loads MediaPipe, one frame -> metrics
+  audioMeter.ts                    Web Audio RMS meter -> rough volume / steadiness summary
+  rubric.ts                        Pure: attribute->signal rubric, signal + Effective computation
+  usageCounter.ts                  File-backed shared request counter for the demo cap
+  scriptImport.ts                  Extract text from an uploaded .txt / .md / .pdf (pdf.js)
+  logger.ts                        Structured console logging for the API routes
+  verifyOutput.ts                  Shape checks on model output before it's returned
+  clientErrors.ts                  Lazy Sentry capture for the frontend (DSN-gated)
+  analytics.ts                     Lazy PostHog wrapper: track() / pageviews / EVENTS (key-gated)
+  expertRequests.ts                File-backed store for "get expert help" requests
 ```
 
 ## Configuration
@@ -66,10 +112,171 @@ lib/
   change to `claude-sonnet-5` for lower cost.
 - **API key** — read from `ANTHROPIC_API_KEY` at request time. Never hardcoded.
 
+## Observability
+
+- **Error tracking (Sentry)** — set `NEXT_PUBLIC_SENTRY_DSN` in `.env.local`
+  (create a project at sentry.io). Blank = Sentry stays fully disabled and adds
+  **zero** client-bundle weight (`next.config.mjs` only wires in the build
+  plugin when the DSN is present). With it set: `instrumentation.ts` +
+  `sentry.{server,edge}.config.ts` + `instrumentation-client.ts` init the SDK,
+  `app/global-error.tsx` catches React render crashes, both API routes call
+  `Sentry.captureException` / `captureMessage` in their catch and verification
+  paths, and the frontend reports unexpected fetch errors via
+  `lib/clientErrors.ts` (lazy-loads the SDK only when a DSN is configured). No
+  source-map upload is configured — add `SENTRY_ORG` / `SENTRY_PROJECT` /
+  `SENTRY_AUTH_TOKEN` and drop `sourcemaps.disable` for readable stack traces.
+- **Structured logs** — both API routes log `request received` → `anthropic
+  call started` → `succeeded` / `failed` → `response sent`, each line prefixed
+  `[<route> <request-id>]` (see `lib/logger.ts`). Plain `console` — visible in
+  `npm run dev` output or your host's function logs.
+- **Output verification** — before returning, `lib/verifyOutput.ts` checks the
+  practice-feedback response contains all 5 sections (Overall / What landed /
+  Gaps vs. the script / Delivery / For your next take) and that a generated
+  script is non-empty and structured. A failure is logged + sent to Sentry and
+  the route returns a graceful `502` (`code: feedback_incomplete` /
+  `script_malformed`) instead of rendering partial content.
+
+## Product analytics & feedback (PostHog)
+
+- **Enable it** — set `NEXT_PUBLIC_POSTHOG_KEY` in `.env.local` (project API key
+  from posthog.com); optionally `NEXT_PUBLIC_POSTHOG_HOST` (defaults to
+  `https://us.i.posthog.com`, use `https://eu.i.posthog.com` for EU cloud).
+  Blank = fully disabled: `posthog-js` is never imported and adds **zero**
+  client-bundle weight (it's a lazy `import()` in `lib/analytics.ts`).
+- **What's tracked** — navigation and engagement only:
+  - `$pageview` on every route (manual, fired from `app/providers.tsx` on App
+    Router navigation) + automatic `$pageleave` for time-on-page. This is what
+    surfaces funnel drop-off between `/generate`, `/script` and `/experts`.
+  - Named events: `script_generated` (`{tone}`), `script_provided`
+    (`{tone, method}`), `practice_session_started` (`{tone, source}`),
+    `practice_session_completed` (`{used_video, duration_sec}`),
+    `feedback_received` (`{used_video, effective_score, effective_band}`),
+    `expert_request_submitted` (no properties).
+- **What is never sent** — script text, transcript content, feedback text, and
+  the expert-form name/email/situation. `track()`'s props are typed to
+  primitives so content can't be passed by accident; autocapture, session
+  recording and anonymous person profiles are all turned off.
+- **In-app feedback** — `components/FeedbackWidget.tsx` reports via PostHog's
+  `survey sent` / `survey dismissed` events: a small "Was this feedback
+  helpful?" card on `/practice` after coaching notes, and a floating "Feedback"
+  pill on the landing page. Dismissals are remembered per browser
+  (`vocalgym:survey:<key>` in localStorage). Surveys created in the PostHog
+  dashboard also render (SDK default).
+
+## Demo usage cap
+
+A lightweight guard against a shared demo link running up an Anthropic bill. It's
+a single combined counter across `/api/generate-script` and
+`/api/practice-feedback` — **not** per-user rate limiting, and under concurrency
+it can overshoot by a few.
+
+- **Set the limit** — `DEMO_REQUEST_LIMIT` in `.env.local` (e.g. `100`). Blank or
+  `0` disables the cap entirely. Once the count reaches the limit, both routes
+  return `429 { error: "Demo limit reached — please check back later.", code:
+  "demo_limit_reached" }` without calling Anthropic, and the UI shows a friendly
+  "check back later" notice instead of a red error.
+- **Check the count** — `GET /api/usage-count` →
+  `{ count, limit, remaining, limited }`. Every counted request also logs
+  `[vocalgym] demo usage N/LIMIT` to the server console (visible in `npm run dev`
+  output or your host's function logs). To lock the endpoint down, set
+  `USAGE_ADMIN_TOKEN` and call it as `/api/usage-count?token=YOUR_TOKEN` (or send
+  an `x-admin-token` header).
+- **Reset the count** — delete the counter file (`.vocalgym-usage.json` in the
+  project root by default) or write `{"count":0}` into it, then it starts from
+  zero on the next request. No restart needed.
+- **Where it's stored** — a JSON file at `.vocalgym-usage.json`, overridable with
+  `USAGE_COUNTER_FILE`. This persists across restarts for local `next start` and
+  long-running / self-hosted deploys. Vercel's serverless filesystem is **not**
+  durable across cold starts — for a Vercel demo, set `USAGE_COUNTER_FILE=/tmp/
+  vocalgym-usage.json` (per-instance protection, resets on cold start) or replace
+  the file I/O in `lib/usageCounter.ts` with Vercel KV.
+
+## Expert-help requests
+
+The "Get expert help" landing path (`/experts`) is a **contact form, not an AI
+feature**. On submit, `POST /api/expert-request` appends `{ id, createdAt, name,
+email, situation }` to `.vocalgym-expert-requests.json` (override with
+`EXPERT_REQUESTS_FILE`; same Vercel-filesystem caveat as the usage counter) and
+logs `[expert-request <id>] saved …`. The user sees a "we'll get back to you"
+confirmation.
+
+Read submitted requests at **`/admin/requests`** (or `GET /api/expert-request`
+for JSON). Both are gated by `USAGE_ADMIN_TOKEN` when it's set — `?token=…` or an
+`x-admin-token` header — and open otherwise. There's no staff routing yet; you
+fulfil these manually by replying to the email with a script the user can then
+paste into `/script`.
+
 ## Notes
 
 - No auth or database. The generated script and past practice attempts
-  (transcript + coaching notes) live in the browser's localStorage only.
+  (transcript + coaching notes + any nonverbal summary) live in the browser's
+  localStorage only.
 - Speech-to-text uses the browser's Web Speech API (Chrome/Edge/Safari). Where
   it's unavailable, the transcript box still accepts typed input.
 - Recorded audio is playable during the session but is not saved.
+- **Upload a script** ("or Upload a script" next to Generate): `.txt` / `.md`
+  are read directly; `.pdf` is parsed with `pdfjs-dist`, dynamically imported
+  only on first PDF use (its worker loads from jsDelivr, pinned to the installed
+  version in `lib/scriptImport.ts`). Everything runs client-side — the file is
+  never uploaded. Scanned/image PDFs have no selectable text and are rejected
+  with a "paste it instead" message; imports are trimmed to 8,000 characters.
+
+### Nonverbal analysis (optional camera)
+
+- Off by default. Toggling it on asks for camera permission and lazy-loads
+  MediaPipe Face + Pose Landmarker (`@mediapipe/tasks-vision`). The WASM runtime
+  loads from jsDelivr and the `.task` models from Google's public MediaPipe
+  bucket — both pinned in `lib/mediapipe.ts`; swap to self-hosted copies if you
+  need offline/air-gapped operation.
+- During a recording the video frame is sampled every ~500ms. Each sample derives
+  head yaw/pitch/roll and gaze (eye-look blendshapes), smile and brow-tension
+  blendshapes, and shoulder angle from the pose model. On stop these reduce to a
+  small summary (`NonverbalMetrics`): facing-forward %, upright %, smile count,
+  brow-tension %, plus timestamped spans for look-aways / leaning in / tension.
+- Only that summary is POSTed to `/api/practice-feedback`. Video frames never
+  leave the browser. If no camera data is present the feedback flow and prompt
+  are exactly as before, with no **Nonverbal** section.
+- The numbers are rough 2D estimates from a single webcam — treated as
+  approximate in both the UI copy and the model prompt.
+
+### Effectiveness rubric + "Effective" score
+
+- On the `/generate` and `/script` pages, `RubricPicker` shows what "effective" means for the current
+  tone/context (`TONE_RUBRIC_PRESETS` in `lib/rubric.ts`), as up to 4 qualities
+  from `RUBRIC_ATTRIBUTES`, stack-ranked with percentage weights summing to 100:
+
+  | tone         | preset (weight%) |
+  |--------------|------------------|
+  | *no preference* | Connected 30 · Present 25 · Clear 25 · Composed 20 |
+  | professional | Clear 30 · Confident 25 · Composed 25 · Smooth 20 |
+  | personal     | Connected 35 · Warm 25 · Present 20 · Smooth 20 |
+  | high-stakes  | Composed 35 · Clear 25 · Confident 20 · Present 20 |
+  | supportive   | Warm 35 · Connected 25 · Present 20 · Smooth 20 |
+  | persuasive   | Confident 30 · Clear 30 · Connected 20 · Smooth 20 |
+  | celebratory  | Warm 40 · Connected 30 · Present 15 · Smooth 15 |
+
+  Changing the tone dropdown retunes the picker live (via a same-tab
+  `vocalgym:tone-change` event). Editing any chip or weight flips it to a
+  **custom** rubric (`custom: true`, saved to `localStorage['vocalgym:rubric']`)
+  that no longer follows the tone; a "Use the … preset" link switches back.
+  `resolveRubric()` in `lib/practiceStore.ts` is the source of truth on
+  `/practice`: your custom rubric if you made one, otherwise the preset for the
+  script's tone.
+- `lib/rubric.ts` also holds the signal rubric: each quality is a weighted blend of
+  **observable signals** — eye contact, posture, stillness (sway / fidget),
+  expressiveness, composure (brow tension), volume and voice steadiness (Web
+  Audio RMS via `lib/audioMeter.ts`), fluency (filler-word density), and pace
+  (words-per-minute vs. an ideal band).
+- After each take, `computeSignals()` turns the transcript + audio + any webcam
+  metrics into 0–100 signal scores, and `computeEffective()` rolls the chosen
+  qualities up into one weighted **Effective** score with a band label
+  (Rough / Getting there / Solid / Dialed in). Qualities with no measurable
+  signal this take (e.g. camera off) are shown as "not scored" and excluded from
+  the weighted average.
+- The rubric + signals go to `/api/practice-feedback`; the score is recomputed
+  server-side for a consistent prompt block that names the tone ("For a
+  high-stakes conversation, an effective delivery is scored on …") or, if you
+  customised, says the qualities were hand-picked. The coaching names the
+  Effective score in **Overall** and points **For your next take** at the
+  highest-weighted quality that scored lowest.
+- Everything is a rough single-take estimate and is labelled as such.

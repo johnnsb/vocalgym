@@ -14,6 +14,10 @@
 .DS_Store
 *.pem
 
+# demo usage counter + expert-help requests (contain names/emails)
+.vocalgym-usage.json
+.vocalgym-expert-requests.json
+
 # debug
 npm-debug.log*
 yarn-debug.log*
@@ -29,3 +33,7 @@ next-env.d.ts
 
 # vercel
 .vercel
+
+# sentry
+.sentryclirc
+.env.sentry-build-plugin

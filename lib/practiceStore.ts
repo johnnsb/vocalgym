@@ -1,10 +1,29 @@
 "use client";
 
-import type { PracticeAttempt, StoredScript } from "./types";
+import type {
+  PracticeAttempt,
+  RubricSelection,
+  StoredScript,
+  Tone,
+} from "./types";
+import { normalizeSelection, rubricPreset } from "./rubric";
 
 const CURRENT_SCRIPT_KEY = "vocalgym:current-script";
 const ATTEMPTS_KEY = "vocalgym:attempts";
+const RUBRIC_KEY = "vocalgym:rubric";
 const MAX_ATTEMPTS = 50;
+
+/** Same-tab signal: the tone/context dropdown changed. Detail is `Tone | ""`. */
+export const TONE_CHANGE_EVENT = "vocalgym:tone-change";
+
+/** Tell the rubric picker on this page that the tone changed, so it can retune. */
+export function broadcastToneChange(tone: Tone | ""): void {
+  try {
+    window.dispatchEvent(new CustomEvent(TONE_CHANGE_EVENT, { detail: tone }));
+  } catch {
+    /* non-browser / no CustomEvent — picker still reads it on next load */
+  }
+}
 
 function storage(): Storage | null {
   try {
@@ -41,6 +60,7 @@ export function loadCurrentScript(): StoredScript | null {
           ? (parsed.tone as StoredScript["tone"])
           : "",
       savedAt: typeof parsed.savedAt === "number" ? parsed.savedAt : Date.now(),
+      source: parsed.source === "uploaded" ? "uploaded" : "generated",
     };
   } catch {
     return null;
@@ -108,4 +128,52 @@ export function newId(): string {
     /* fall through */
   }
   return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+/** The effectiveness rubric the user last set on the home page. */
+export function saveRubric(selection: RubricSelection): void {
+  const s = storage();
+  if (!s) return;
+  try {
+    s.setItem(RUBRIC_KEY, JSON.stringify(selection));
+  } catch {
+    /* non-fatal */
+  }
+}
+
+/** Returns the raw stored selection (may be empty); `null` if nothing saved. */
+export function loadRubric(): RubricSelection | null {
+  const s = storage();
+  if (!s) return null;
+  try {
+    const raw = s.getItem(RUBRIC_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<RubricSelection>;
+    if (!Array.isArray(parsed.attributes)) return null;
+    return {
+      attributes: parsed.attributes.slice(0, 4) as RubricSelection["attributes"],
+      weights:
+        parsed.weights && typeof parsed.weights === "object"
+          ? (parsed.weights as Record<string, number>)
+          : {},
+      custom: parsed.custom === true,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** Same as loadRubric but always returns a usable, weight-normalised selection. */
+export function loadRubricNormalized(): RubricSelection {
+  return normalizeSelection(loadRubric());
+}
+
+/**
+ * The rubric to actually score against: the user's hand-edited one if they made
+ * it, otherwise the preset for whatever tone they picked for the current script.
+ */
+export function resolveRubric(): RubricSelection {
+  const stored = loadRubric();
+  if (stored?.custom) return normalizeSelection(stored);
+  return rubricPreset(loadCurrentScript()?.tone ?? "");
 }

@@ -4,6 +4,7 @@ import {
   buildUserPrompt,
   FEEDBACK_SYSTEM_PROMPT,
   buildFeedbackPrompt,
+  type FeedbackPromptExtras,
 } from "./prompt";
 import type { Tone } from "./types";
 
@@ -54,15 +55,17 @@ export async function generatePracticeFeedback(
   transcript: string,
   situation?: string,
   tone?: Tone,
+  extras: FeedbackPromptExtras = {},
 ): Promise<string> {
+  const rich = Boolean(extras.nonverbal || extras.effective);
   const response = await getClient().messages.create({
     model: MODEL,
-    max_tokens: 2048,
+    max_tokens: rich ? 2600 : 2048,
     system: FEEDBACK_SYSTEM_PROMPT,
     messages: [
       {
         role: "user",
-        content: buildFeedbackPrompt(script, transcript, situation, tone),
+        content: buildFeedbackPrompt(script, transcript, situation, tone, extras),
       },
     ],
   });

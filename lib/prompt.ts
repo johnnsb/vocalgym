@@ -1,4 +1,11 @@
-import type { Tone } from "./types";
+import type {
+  EffectiveResult,
+  NonverbalMetrics,
+  ObservableSignals,
+  Tone,
+} from "./types";
+import { formatNonverbalForPrompt } from "./nonverbal";
+import { formatRubricForPrompt } from "./rubric";
 
 export const SYSTEM_PROMPT = `You are a communication coach. You help people prepare for real, spoken conversations that feel high-stakes to them — difficult family talks, negotiations, pitches, feedback, apologies, and the like.
 
@@ -37,24 +44,36 @@ export function buildUserPrompt(situation: string, tone?: Tone): string {
   return lines.join("\n");
 }
 
-export const FEEDBACK_SYSTEM_PROMPT = `You are a communication coach reviewing a rehearsal. The user was given a prepared script for a real spoken conversation, practiced it out loud, and their attempt was captured by speech-to-text — so expect some transcription noise and do not comment on it.
+export const FEEDBACK_SYSTEM_PROMPT = `You are a communication coach reviewing a rehearsal. The user was given a prepared script for a real spoken conversation, practiced it out loud, and their attempt was captured by speech-to-text — so expect some transcription noise and do not comment on it. Sometimes the user also turns on their webcam, in which case rough nonverbal signals (eye contact, posture, expressiveness) are included below.
 
 Compare the attempt to the script and give focused, encouraging feedback the user can act on before their next take.
 
-Format the response in Markdown with exactly these sections:
+Format the response in Markdown with these sections, in this order:
 - **Overall** — two sentences on how close the attempt is to being ready, in plain terms.
 - **What landed** — 2 to 3 bullets naming specific things they did well. Quote short phrases from their attempt where it helps.
 - **Gaps vs. the script** — 2 to 3 bullets: talking points they skipped, softened, or rushed past. Name the script section.
 - **Delivery** — 2 to 3 bullets on hedging, filler, over-explaining, or wording that undercuts the message.
+- **Nonverbal** — include this section ONLY if nonverbal webcam signals are provided below. 2 to 4 bullets on eye contact, posture, and expressiveness, grounded in the numbers given. Treat the numbers as rough estimates, not exact truth, and don't over-interpret small differences. If no nonverbal signals are provided, omit this section entirely.
 - **For your next take** — 2 to 3 concrete, prioritized changes.
 
+If an EFFECTIVENESS RUBRIC is provided below, it defines which qualities matter for this conversation and how much (either tuned to the tone/context or hand-picked by the user). Name the "Effective" score once in **Overall**, and let the rubric steer **For your next take** toward the highest-weighted quality that scored lowest. Do not add a separate rubric section and do not print the numbers as a table.
+
 Be direct but supportive. No preamble before the feedback.`;
+
+export interface FeedbackPromptExtras {
+  nonverbal?: NonverbalMetrics | null;
+  effective?: EffectiveResult | null;
+  signals?: ObservableSignals | null;
+  /** true when the rubric was hand-edited rather than the tone preset. */
+  rubricCustom?: boolean;
+}
 
 export function buildFeedbackPrompt(
   script: string,
   transcript: string,
   situation?: string,
   tone?: Tone,
+  extras: FeedbackPromptExtras = {},
 ): string {
   const lines = [
     `Situation: ${situation?.trim() || "(not provided)"}`,
@@ -69,8 +88,19 @@ export function buildFeedbackPrompt(
     "",
     "--- REHEARSAL TRANSCRIPT ---",
     transcript.trim(),
-    "",
-    "Give the feedback.",
   );
+  if (extras.nonverbal) {
+    lines.push("", `--- ${formatNonverbalForPrompt(extras.nonverbal)}`);
+  }
+  if (extras.effective && extras.signals) {
+    lines.push(
+      "",
+      `--- ${formatRubricForPrompt(extras.effective, extras.signals, {
+        tone,
+        custom: extras.rubricCustom,
+      })}`,
+    );
+  }
+  lines.push("", "Give the feedback.");
   return lines.join("\n");
 }

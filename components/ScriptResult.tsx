@@ -6,7 +6,8 @@ import Link from "next/link";
 interface Props {
   script: string;
   loading: boolean;
-  onRegenerate: () => void;
+  /** Omitted for uploaded scripts — there's nothing to regenerate. */
+  onRegenerate?: () => void;
 }
 
 export default function ScriptResult({ script, loading, onRegenerate }: Props) {
@@ -34,14 +35,16 @@ export default function ScriptResult({ script, loading, onRegenerate }: Props) {
           >
             {copied ? "Copied!" : "Copy"}
           </button>
-          <button
-            type="button"
-            onClick={onRegenerate}
-            disabled={loading}
-            className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {loading ? "Regenerating…" : "Regenerate"}
-          </button>
+          {onRegenerate && (
+            <button
+              type="button"
+              onClick={onRegenerate}
+              disabled={loading}
+              className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {loading ? "Regenerating…" : "Regenerate"}
+            </button>
+          )}
         </div>
       </div>
 
