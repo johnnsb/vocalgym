@@ -12,7 +12,7 @@ export default function SiteHeader() {
         </Link>
         <div className="flex items-center gap-1 text-sm sm:gap-2">
           <Link
-            href="/#how-it-works"
+            href="/how-it-works"
             className="rounded-md px-2 py-1.5 text-slate-600 transition hover:text-slate-900"
           >
             How it works

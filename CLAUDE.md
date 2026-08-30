@@ -57,7 +57,12 @@ signals — rolled up into a single "Effective" score.
     table. Confirmation message shown; requests are fulfilled manually via
     `/admin/requests` (token-gated by USAGE_ADMIN_TOKEN when set) or
     GET /api/expert-request.
-  - `/faq`, `/signin` — thin "coming soon" stub pages.
+  - `/how-it-works` — stub content page (the 3-step loop, expanded from the
+    landing-page section); linked from `SiteHeader`, the landing `#how-it-works`
+    section ("Read the full walkthrough"), and the footer.
+  - `/faq` — stub with a handful of real short Q&As (accounts, storage, camera,
+    cost, browsers); linked from `SiteHeader` and the footer.
+  - `/signin` — thin "coming soon" stub page.
   Both `/script` and `/generate` also render the effectiveness rubric picker.
 - `/practice` — practice session: record audio (+ optional video), transcribe,
   submit to POST /api/practice-feedback for Claude-generated coaching notes.

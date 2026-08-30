@@ -11,7 +11,8 @@ export default function SignInPage() {
       <h1 className="text-3xl font-bold tracking-tight">Sign in</h1>
       <p className="mt-3 text-slate-600">
         Accounts are coming soon. For now everything works without one — your
-        scripts and practice history are saved in this browser.
+        scripts and practice history are tied to an anonymous session in this
+        browser.
       </p>
       <Link
         href="/"

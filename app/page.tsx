@@ -93,12 +93,24 @@ export default function Home() {
               </li>
             ))}
           </ol>
+          <Link
+            href="/how-it-works"
+            className="mt-6 inline-block text-sm font-medium text-slate-900 underline underline-offset-4 hover:text-slate-600"
+          >
+            Read the full walkthrough &rarr;
+          </Link>
         </div>
       </section>
 
       <footer className="border-t border-slate-200">
-        <div className="mx-auto max-w-5xl px-4 py-8 text-sm text-slate-400">
-          VocalGym — practice for the conversations that matter.
+        <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-x-6 gap-y-2 px-4 py-8 text-sm text-slate-400">
+          <span>VocalGym — practice for the conversations that matter.</span>
+          <Link href="/how-it-works" className="hover:text-slate-600">
+            How it works
+          </Link>
+          <Link href="/faq" className="hover:text-slate-600">
+            FAQ
+          </Link>
         </div>
       </footer>
 

@@ -92,7 +92,9 @@ app/
   script/page.tsx                  "Bring your own words" — BringScriptFlow
   experts/page.tsx                 "Get expert help" — ExpertRequestForm (no AI)
   admin/requests/page.tsx          Read submitted expert requests (token-gated)
-  faq/page.tsx, signin/page.tsx    Thin "coming soon" stubs
+  how-it-works/page.tsx            Stub content page (the 3-step loop)
+  faq/page.tsx                     Stub FAQ (a few real short answers)
+  signin/page.tsx                  Thin "coming soon" stub
   practice/page.tsx                Practice route
   globals.css                      Tailwind entry point
 components/
