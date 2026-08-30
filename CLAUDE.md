@@ -35,10 +35,12 @@ signals — rolled up into a single "Effective" score.
   gated on NEXT_PUBLIC_POSTHOG_KEY (blank = fully disabled, SDK never imported,
   zero client-bundle cost — `posthog-js` is a lazy `import()` in
   `lib/analytics.ts`). Optional NEXT_PUBLIC_POSTHOG_HOST (default
-  `https://us.i.posthog.com`). Currently blank in .env.local, so it's off.
-  Navigation + named interaction events ONLY — autocapture, session recording,
-  and anonymous person profiles are all disabled; script/transcript/feedback
-  text is never sent (see Observability below).
+  `https://us.i.posthog.com`, which is what's in use). A key IS configured in
+  .env.local now, so analytics is LIVE — including in `npm run dev`, and the
+  `FeedbackWidget` smiley prompts render. Navigation + named interaction events
+  ONLY — autocapture, session recording, and anonymous person profiles are all
+  disabled; script/transcript/feedback text is never sent (see Observability
+  below).
 
 ## Architecture
 - `/` — landing page: nav (shared `SiteHeader` in `app/layout.tsx`), tagline,
