@@ -28,9 +28,11 @@ Prisma + Postgres, and MediaPipe Tasks Vision.
 
 ## Getting started
 
-1. Install dependencies:
+1. Clone and install:
 
    ```bash
+   git clone https://github.com/johnnsb/vocalgym.git
+   cd vocalgym
    npm install
    ```
 
