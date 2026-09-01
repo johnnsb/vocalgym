@@ -24,7 +24,9 @@ those qualities, and the coaching targets the quality weighted highest that
 scored lowest.
 
 Built with Next.js 14 (App Router), TypeScript, Tailwind CSS, the Anthropic SDK,
-Prisma + Postgres, and MediaPipe Tasks Vision.
+Prisma + Postgres, and MediaPipe Tasks Vision. The UI runs on a warm, single-
+accent design system (`components/ui/` + `app/styles/tokens.css`) ported from a
+Claude Design project — see **Design system** below.
 
 ## Getting started
 
@@ -98,8 +100,10 @@ app/
   faq/page.tsx                     Stub FAQ (a few real short answers)
   signin/page.tsx                  Thin "coming soon" stub
   practice/page.tsx                Practice route
-  globals.css                      Tailwind entry point
+  globals.css                      Imports styles/tokens.css, then Tailwind
+  styles/tokens.css                Design-system tokens (CSS custom properties)
 components/
+  ui/                              Design-system primitives (Button, Card, Field, Icon, …) + Callout
   SiteHeader.tsx                   Top nav (wordmark, How it works, FAQ, Sign in)
   GenerateFlow.tsx                 AI-generate path: form + result + state restore
   BringScriptFlow.tsx              Bring-your-own path: use existing / paste / upload
@@ -110,7 +114,7 @@ components/
   PracticeSession.tsx              Practice orchestrator: script, record, feedback, history
   PracticeRecorder.tsx             Mic + optional camera capture; drives the samplers
   PracticeFeedback.tsx             Rendered coaching notes
-  FeedbackSections.tsx             Parses feedback markdown into color-coded sections
+  FeedbackSections.tsx             Parses feedback markdown into icon-labelled sections
   NonverbalSummary.tsx             Compact eye-contact / posture / expressiveness chips
   EffectiveScore.tsx               The Effective score + per-attribute breakdown bars
   PastAttempts.tsx                 Sidebar history, grouped by script (label header), rows collapsible
@@ -140,6 +144,31 @@ lib/
 
 - **Model** — set in `lib/anthropic.ts` (`MODEL`). Currently `claude-sonnet-5`.
 - **API key** — read from `ANTHROPIC_API_KEY` at request time. Never hardcoded.
+
+## Design system
+
+Ported from a Claude Design project (`f8a47408-…`). A warm neutral palette
+(Ink / Charcoal / Fog / Parchment / Canvas) with a **single** Ember accent — no
+feature colors. Source Serif 4 for headlines / moments of address, Public Sans
+for body and all UI. The recording state is the one "hot" signal (`--live`).
+
+- **Tokens** — `app/styles/tokens.css` (CSS custom properties), `@import`ed at
+  the top of `app/globals.css` and mapped onto Tailwind utilities in
+  `tailwind.config.ts`: `bg-canvas`, `text-text-body`, `rounded-card`,
+  `shadow-sm`, `font-serif`, `text-h2`, `max-w-prose`, `ease-settle`, …
+- **Primitives** — `components/ui/` (barrel `index.ts`): Button, IconButton,
+  Icon, Card, Badge, Tag, BrandMark, Waveform, Field, Input, Textarea, Select,
+  Checkbox, Radio, Switch, Tabs, plus a token-built `Callout` for notice boxes.
+  Faithful ports of the DS components — inline `style` from the CSS vars +
+  React hover/press state. `Button` / `Card` take `as` / `href` for link CTAs.
+- **Icons** — `lucide-react`, via `Icon` with an explicit ~35-glyph allow-list
+  (`components/ui/Icon.tsx`). **Fonts** — `next/font/google` in `app/layout.tsx`.
+- **Logo** — `<BrandMark>` needs 8 PNGs in `public/brand/` (see its README);
+  they exceed the design-tool read cap, so until they're exported manually the
+  `SiteHeader` wordmark is plain text.
+- Screens compose the primitives + token utilities. Don't hand-roll
+  `bg-slate-*` / `rounded-xl border` cards, buttons, or inputs — use a
+  primitive. No feature colors.
 
 ## Database (Prisma + Postgres)
 

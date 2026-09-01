@@ -7,6 +7,10 @@ signals — rolled up into a single "Effective" score.
 
 ## Tech stack
 - Next.js 14 (App Router), TypeScript, Tailwind CSS
+- Design system (`components/ui/` + `app/styles/tokens.css`) ported from the
+  "VocalGym Design System" Claude Design project — warm neutral palette, single
+  Ember accent, Source Serif 4 (`next/font`) headlines + Public Sans everywhere
+  else, `lucide-react` icons. See "## Design system" below.
 - Prisma 6 (`@prisma/client` + `prisma`) against Neon Postgres — pooled
   connection (`DATABASE_URL_POOLED`, has `?pgbouncer=true`) for runtime, direct
   connection (`DATABASE_URL`) for migrations. This is the source of truth for
@@ -176,9 +180,45 @@ signals — rolled up into a single "Effective" score.
   label). It's shown on `/practice` and fed into the feedback prompt so the
   coaching targets the highest-weighted quality that scored lowest.
 
+## Design system
+- Adopted from the "VocalGym Design System" Claude Design project
+  (`f8a47408-…`). Warm neutrals (Ink / Charcoal / Fog / Parchment / Canvas),
+  ONE accent (Ember `#A9723A`; use `--ember-text` `#8A5A28` for accent copy),
+  no feature colors. Serif (Source Serif 4) only for moments of address —
+  page/section titles, hero lines; Public Sans for body + all UI, incl. H4
+  section labels. Recording state is the one "hot" signal (`--live` `#8C3A2B`).
+- **Tokens** live in `app/styles/tokens.css` (CSS custom properties, imported
+  at the top of `app/globals.css`) and are mapped onto Tailwind utilities in
+  `tailwind.config.ts` — `bg-canvas`, `text-text-body`, `rounded-card`,
+  `shadow-sm`, `font-serif`, `text-h2`, `max-w-prose`, `ease-settle`, etc.
+- **Primitives** in `components/ui/` (barrel `index.ts`) are faithful TS ports
+  of the DS's own components: Button, IconButton, Icon, Card, Badge, Tag,
+  BrandMark, Waveform, Field, Input, Textarea, Select, Checkbox, Radio, Switch,
+  Tabs + a token-built `Callout` (amber/red notice boxes). They style
+  themselves from the CSS vars via inline `style={{…}}` + React hover/press
+  state — screen-level layout glue uses the Tailwind token utilities. Button
+  and Card take an `as` / `href` escape hatch for link CTAs. Dialog / Toast /
+  Tooltip / SidebarNav exist in the DS but aren't ported (nothing uses them).
+- **Icons**: `Icon` renders `lucide-react` from an explicit ~35-glyph allow-list
+  (`components/ui/Icon.tsx` REGISTRY) — a wildcard import balloons the bundle
+  ~200kB. Add a glyph to REGISTRY when genuinely needed.
+- **Fonts**: `next/font/google` in `app/layout.tsx` sets `--font-source-serif` /
+  `--font-public-sans`, consumed by `tokens.css`.
+- **Logo**: `<BrandMark>` references `/public/brand/logo-*.png`. Those PNGs
+  exceed the design-tool read cap and must be exported from the DS project
+  manually — until then `SiteHeader` shows a plain-text "VocalGym" wordmark.
+- Layout / IA unchanged: kept the top-nav `SiteHeader`, did NOT adopt the DS's
+  sidebar `AppShell` or full-Ink rehearsal room (that would be a feature change).
+- `FeedbackWidget` keeps its emoji smiley faces (a shipped feature) even though
+  the DS says "Emoji: never" — only its chrome is tokenised.
+
 ## Conventions
 - Keep features additive/isolated — new features get their own route/module,
   don't modify working existing flows unless explicitly asked
+- Style with the design system: `components/ui/` primitives + the token
+  Tailwind utilities. Don't hand-roll `bg-slate-*` / `rounded-xl border`
+  card/button/input markup — a primitive already covers it. No feature colors;
+  amber/red notices are `<Callout tone="caution"/"critical">`.
 - .env.local (gitignored, never commit) holds ANTHROPIC_API_KEY and
   DATABASE_URL / DATABASE_URL_POOLED (secret) plus NEXT_PUBLIC_SENTRY_DSN,
   NEXT_PUBLIC_POSTHOG_KEY / NEXT_PUBLIC_POSTHOG_HOST and DEMO_REQUEST_LIMIT (not
@@ -213,7 +253,8 @@ signals — rolled up into a single "Effective" score.
   `Session` rows to a user.
 - `prisma migrate deploy` in the deploy pipeline (there's a `db:deploy` script
   but no CI/host wired to run it).
-- Brand/design system pass (planned via Claude Design, not yet started)
+- Export the 8 brand logo PNGs from the DS project into `public/brand/` and
+  switch `SiteHeader` (+ footer / hero) from the text wordmark to `<BrandMark>`.
 - Sentry source-map upload (set SENTRY_ORG / SENTRY_PROJECT / SENTRY_AUTH_TOKEN
   and drop `sourcemaps.disable` in `next.config.mjs` for readable stack traces)
 
