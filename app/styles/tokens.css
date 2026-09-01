@@ -1,0 +1,233 @@
+/* VocalGym design-system tokens.
+ * Ported verbatim from the "VocalGym Design System" Claude Design project
+ * (colors / typography / spacing / radii / elevation / motion / base).
+ * Font families are wired to the next/font CSS variables set in app/layout.tsx.
+ */
+
+:root {
+  /* ---- Fonts (families come from next/font via --font-serif / --font-sans) ---- */
+  --font-serif: var(--font-source-serif), "Iowan Old Style", Georgia, serif;
+  --font-sans: var(--font-public-sans), -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+  --font-mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --font-display: var(--font-serif);
+  --font-heading: var(--font-serif);
+  --font-body: var(--font-sans);
+  --font-ui: var(--font-sans);
+
+  /* ---- Palette — the whole brand. Five warm neutrals, one accent. ---- */
+  --ink: #201e1b;
+  --charcoal: #423c33;
+  --ember: #a9723a;
+  --fog: #c7bfaf;
+  --parchment: #efe9de;
+  --canvas: #faf7f1;
+  --white: #ffffff;
+
+  --ember-text: #8a5a28;
+  --ember-press: #8f5f2f;
+  --ember-hover: #b98246;
+  --ember-tint: #f2e6d6;
+  --ember-line: #dfc7a6;
+
+  --ink-2: #2e2b26;
+  --charcoal-2: #57503f;
+  --stone: #8c8377;
+  --fog-2: #dcd5c7;
+  --parchment-2: #e6dfd2;
+
+  /* text */
+  --text-primary: var(--ink);
+  --text-body: var(--charcoal);
+  --text-muted: var(--stone);
+  --text-disabled: var(--fog);
+  --text-accent: var(--ember-text);
+  --text-inverse: var(--canvas);
+  --text-inverse-muted: #b3aa9c;
+
+  /* surfaces */
+  --surface-page: var(--canvas);
+  --surface-card: var(--white);
+  --surface-sunken: var(--parchment);
+  --surface-raised: var(--white);
+  --surface-inverse: var(--ink);
+  --surface-inverse-2: var(--charcoal);
+  --surface-accent: var(--ember);
+  --surface-accent-tint: var(--ember-tint);
+  --surface-hover: var(--parchment-2);
+  --surface-press: var(--fog-2);
+
+  /* lines */
+  --border-subtle: var(--fog-2);
+  --border-default: var(--fog);
+  --border-strong: var(--charcoal);
+  --border-accent: var(--ember);
+  --border-inverse: #4a4437;
+
+  /* focus */
+  --focus-ring: var(--ember);
+  --focus-ring-soft: rgba(169, 114, 58, 0.28);
+
+  /* status — deliberately narrow, warm family, system feedback only */
+  --status-positive: #4f6b4a;
+  --status-positive-tint: #e4eadf;
+  --status-caution: var(--ember-text);
+  --status-caution-tint: var(--ember-tint);
+  --status-critical: #8c3a2b;
+  --status-critical-tint: #f3e1dc;
+
+  /* recording / live — the one "hot" signal */
+  --live: #8c3a2b;
+
+  /* ---- Type scale ---- */
+  --text-display-size: 42px;
+  --text-display-line: 50px;
+  --text-display-weight: 600;
+  --text-display-tracking: -0.01em;
+  --text-h2-size: 30px;
+  --text-h2-line: 38px;
+  --text-h2-weight: 500;
+  --text-h3-size: 22px;
+  --text-h3-line: 30px;
+  --text-h3-weight: 500;
+  --text-h4-size: 18px;
+  --text-h4-line: 26px;
+  --text-h4-weight: 600;
+  --text-body-size: 17px;
+  --text-body-line: 28px;
+  --text-body-weight: 400;
+  --text-body-sm-size: 15px;
+  --text-body-sm-line: 24px;
+  --text-label-size: 15px;
+  --text-label-line: 20px;
+  --text-label-weight: 500;
+  --text-label-tracking: 0.01em;
+  --text-caption-size: 13px;
+  --text-caption-line: 18px;
+  --text-eyebrow-size: 12px;
+  --text-eyebrow-line: 16px;
+  --text-eyebrow-weight: 600;
+  --text-eyebrow-tracking: 0.09em;
+  --text-hero-size: 60px;
+  --text-hero-line: 66px;
+  --measure-prose: 62ch;
+  --measure-narrow: 46ch;
+
+  /* ---- Spacing (4px base, airy at the top) ---- */
+  --space-0: 0px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 32px;
+  --space-8: 40px;
+  --space-9: 56px;
+  --space-10: 72px;
+  --space-11: 96px;
+  --space-12: 128px;
+  --gap-inline: var(--space-2);
+  --gap-control: var(--space-3);
+  --gap-field: var(--space-5);
+  --gap-card: var(--space-6);
+  --gap-block: var(--space-8);
+  --gap-section: var(--space-11);
+  --pad-card: var(--space-7);
+  --pad-card-sm: var(--space-5);
+  --pad-page-x: var(--space-8);
+  --pad-panel: var(--space-6);
+  --container-max: 1160px;
+  --container-narrow: 720px;
+  --sidebar-w: 264px;
+  --topbar-h: 68px;
+  --control-h: 44px;
+  --control-h-sm: 36px;
+  --control-h-lg: 52px;
+
+  /* ---- Radii ---- */
+  --radius-xs: 3px;
+  --radius-sm: 5px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 18px;
+  --radius-pill: 999px;
+  --radius-control: var(--radius-sm);
+  --radius-card: var(--radius-lg);
+  --radius-panel: var(--radius-xl);
+  --radius-chip: var(--radius-pill);
+  --border-width: 1px;
+  --border-width-strong: 1.5px;
+  --focus-width: 2px;
+  --focus-offset: 2px;
+
+  /* ---- Elevation (warm, brown-black, low-contrast) ---- */
+  --shadow-none: none;
+  --shadow-hairline: 0 1px 0 rgba(32, 30, 27, 0.04);
+  --shadow-sm: 0 1px 2px rgba(32, 30, 27, 0.05), 0 1px 1px rgba(32, 30, 27, 0.04);
+  --shadow-md: 0 2px 6px rgba(32, 30, 27, 0.06), 0 8px 20px -8px rgba(32, 30, 27, 0.1);
+  --shadow-lg: 0 4px 12px rgba(32, 30, 27, 0.08), 0 24px 48px -16px rgba(32, 30, 27, 0.16);
+  --shadow-inset: inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  --shadow-inset-sunken: inset 0 1px 2px rgba(32, 30, 27, 0.06);
+  --scrim: rgba(32, 30, 27, 0.44);
+  --protect-canvas: linear-gradient(to top, var(--canvas) 0%, rgba(250, 247, 241, 0.86) 55%, rgba(250, 247, 241, 0) 100%);
+  --protect-ink: linear-gradient(to top, rgba(32, 30, 27, 0.85) 0%, rgba(32, 30, 27, 0) 100%);
+  --blur-panel: saturate(140%) blur(14px);
+
+  /* ---- Motion (soft settle, nothing bounces) ---- */
+  --dur-instant: 80ms;
+  --dur-fast: 140ms;
+  --dur-base: 220ms;
+  --dur-slow: 380ms;
+  --dur-enter: 260ms;
+  --dur-breath: 3200ms;
+  --ease-out: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.4, 0.14, 0.3, 1);
+  --ease-settle: cubic-bezier(0.16, 0.84, 0.34, 1);
+  --lift-hover: -1px;
+  --press-scale: 0.99;
+  --enter-travel: 6px;
+}
+
+/* ---- Base ---- */
+body {
+  background: var(--surface-page);
+  color: var(--text-body);
+  font-family: var(--font-body);
+  font-size: var(--text-body-size);
+  line-height: var(--text-body-line);
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: var(--ember-tint);
+  color: var(--ink);
+}
+
+:focus-visible {
+  outline: var(--focus-width) solid var(--focus-ring);
+  outline-offset: var(--focus-offset);
+  border-radius: var(--radius-xs);
+}
+
+/* ---- Keyframes (design-system motion; the app's own vg-wave lives in globals.css) ---- */
+@keyframes vg-fade-up {
+  from { opacity: 0; transform: translateY(var(--enter-travel)); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes vg-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes vg-breath {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
