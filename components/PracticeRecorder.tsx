@@ -404,7 +404,7 @@ export default function PracticeRecorder({
     <div
       className={`rounded-card border p-5 shadow-sm transition-colors sm:p-6 ${
         recording
-          ? "border-live/40 bg-status-critical-tint/40"
+          ? "border-live bg-status-critical-tint"
           : "border-border-subtle bg-surface-card"
       }`}
     >
@@ -414,7 +414,7 @@ export default function PracticeRecorder({
           checked={wantsVideo}
           onChange={toggleCamera}
           disabled={disabled || recording || videoState === "loading"}
-          className="h-[18px] w-[18px] rounded-xs border-border-default text-ember focus:ring-ember/40 disabled:opacity-50"
+          className="h-[18px] w-[18px] rounded-xs border-border-default accent-ember disabled:opacity-50"
         />
         <span>Use camera for body-language feedback</span>
         {videoState === "loading" && (

@@ -117,7 +117,7 @@ export default function PastAttempts({ attempts, onDelete, onClearAll }: Props) 
         <div className="lg:max-h-[calc(100vh-12rem)] lg:overflow-y-auto">
           {groups.map((group) => (
             <section key={group.key}>
-              <div className="sticky top-0 z-10 flex items-baseline gap-2 border-b border-border-subtle bg-surface-sunken/95 px-4 py-2 backdrop-blur">
+              <div className="sticky top-0 z-10 flex items-baseline gap-2 border-b border-border-subtle bg-surface-sunken px-4 py-2">
                 <h3 className="truncate text-caption font-semibold text-text-primary">
                   {group.label}
                 </h3>
