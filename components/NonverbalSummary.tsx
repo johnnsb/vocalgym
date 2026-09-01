@@ -1,4 +1,5 @@
 import type { NonverbalMetrics, NonverbalSpan } from "@/lib/types";
+import { Badge, Card } from "@/components/ui";
 
 function clock(sec: number): string {
   const m = Math.floor(sec / 60);
@@ -42,44 +43,36 @@ export default function NonverbalSummary({ metrics, compact = false }: Props) {
     notes.push(`Head ${metrics.posture.headTilt} on average`);
   }
 
-  return (
-    <div
-      className={
-        compact
-          ? "space-y-2"
-          : "rounded-xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6"
-      }
-    >
+  const body = (
+    <>
       <h3
-        className={`${
-          compact ? "text-xs" : "mb-3 text-sm"
-        } font-semibold text-slate-700`}
+        className={`${compact ? "text-caption" : "mb-3 text-body-sm"} font-semibold text-text-primary`}
       >
         Nonverbal signals{" "}
-        <span className="font-normal text-slate-400">
+        <span className="font-normal text-text-muted">
           · rough webcam estimate
         </span>
       </h3>
 
       <div className="flex flex-wrap gap-2">
         {stats.map((s) => (
-          <span
-            key={s.label}
-            className="inline-flex items-baseline gap-1.5 rounded-md bg-slate-100 px-2.5 py-1 text-xs"
-          >
-            <span className="font-semibold text-slate-800">{s.value}</span>
-            <span className="text-slate-500">{s.label}</span>
-          </span>
+          <Badge key={s.label} tone="plain">
+            <span className="font-semibold text-text-primary">{s.value}</span>
+            <span className="font-normal text-text-muted">{s.label}</span>
+          </Badge>
         ))}
       </div>
 
       {notes.length > 0 && (
-        <ul className="mt-3 space-y-1 text-xs text-slate-500">
+        <ul className="mt-3 space-y-1 text-caption text-text-muted">
           {notes.map((n, i) => (
             <li key={i}>{n}</li>
           ))}
         </ul>
       )}
-    </div>
+    </>
   );
+
+  if (compact) return <div className="space-y-2">{body}</div>;
+  return <Card padding="sm">{body}</Card>;
 }

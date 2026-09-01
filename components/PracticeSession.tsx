@@ -37,6 +37,7 @@ import {
 import { reportClientError } from "@/lib/clientErrors";
 import { EVENTS, track } from "@/lib/analytics";
 import FeedbackWidget from "./FeedbackWidget";
+import { Button, Callout, Card, Input, Textarea } from "@/components/ui";
 
 export default function PracticeSession() {
   const router = useRouter();
@@ -211,25 +212,25 @@ export default function PracticeSession() {
   }
 
   if (!hydrated) {
-    return <p className="text-sm text-slate-500">Loading…</p>;
+    return <p className="text-body-sm text-text-muted">Loading…</p>;
   }
 
   return (
     <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_20rem] lg:gap-10">
       <div className="min-w-0 space-y-8">
         {rubric && (
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm shadow-sm">
-            <span className="font-medium text-slate-700">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md border border-border-subtle bg-surface-card px-4 py-3 text-body-sm shadow-sm">
+            <span className="font-medium text-text-primary">
               Scoring this take on:
             </span>
             {rubric.attributes.map((a, i) => (
-              <span key={a} className="text-slate-600">
-                {i > 0 && <span className="text-slate-300"> · </span>}
+              <span key={a} className="text-text-body">
+                {i > 0 && <span className="text-fog"> · </span>}
                 {ATTRIBUTE_RUBRIC[a].label}{" "}
-                <span className="text-slate-400">{rubric.weights[a]}%</span>
+                <span className="text-text-muted">{rubric.weights[a]}%</span>
               </span>
             ))}
-            <span className="text-xs text-slate-400">
+            <span className="text-caption text-text-muted">
               (
               {rubric.custom
                 ? "custom"
@@ -241,7 +242,7 @@ export default function PracticeSession() {
             <button
               type="button"
               onClick={() => router.back()}
-              className="ml-auto text-xs text-slate-400 underline underline-offset-2 transition hover:text-slate-600"
+              className="ml-auto text-caption text-text-muted underline underline-offset-2 transition hover:text-text-body"
             >
               change
             </button>
@@ -249,17 +250,17 @@ export default function PracticeSession() {
         )}
 
         {/* Script reference */}
-        <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm sm:p-7">
+        <Card as="section" padding="lg">
           <div className="mb-4 flex items-center justify-between gap-3">
-            <h2 className="text-lg font-semibold">Your script</h2>
+            <h2 className="text-h4 text-text-primary">Your script</h2>
             {script.trim() && (
-              <button
-                type="button"
+              <Button
+                variant="secondary"
+                size="sm"
                 onClick={() => setEditingScript((v) => !v)}
-                className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
               >
                 {editingScript ? "Done" : "Edit"}
-              </button>
+              </Button>
             )}
           </div>
 
@@ -271,20 +272,22 @@ export default function PracticeSession() {
                 rows={12}
                 maxLength={8000}
                 placeholder="Paste a script here, or generate one on the home page."
-                className="w-full rounded-md border border-slate-300 px-3 py-2 font-mono text-xs leading-relaxed shadow-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
+                className="w-full rounded-control border border-border-default bg-surface-card px-3 py-2 font-mono text-caption leading-relaxed shadow-inset-sunken outline-none focus:border-ember"
               />
-              <input
+              <Input
                 type="text"
                 value={situation}
                 onChange={(e) => setSituation(e.target.value)}
                 maxLength={2000}
                 placeholder="One line of context about the situation (optional)"
-                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
               />
               {!script.trim() && (
-                <p className="text-sm text-slate-500">
+                <p className="text-body-sm text-text-muted">
                   No script yet.{" "}
-                  <Link href="/" className="font-medium underline">
+                  <Link
+                    href="/"
+                    className="font-medium text-text-accent underline"
+                  >
                     Generate one
                   </Link>{" "}
                   and it&apos;ll show up here automatically.
@@ -292,18 +295,18 @@ export default function PracticeSession() {
               )}
             </div>
           ) : (
-            <div className="whitespace-pre-wrap text-sm leading-relaxed text-slate-800">
+            <div className="whitespace-pre-wrap text-body-sm leading-relaxed text-text-primary">
               {script}
             </div>
           )}
-        </section>
+        </Card>
 
         {/* Record + transcript */}
-        <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm sm:p-7">
+        <Card as="section" padding="lg">
           <div className="space-y-6">
             <div>
-              <h2 className="text-lg font-semibold">Rehearse it out loud</h2>
-              <p className="mt-1.5 text-sm leading-relaxed text-slate-600">
+              <h2 className="text-h4 text-text-primary">Rehearse it out loud</h2>
+              <p className="mt-1.5 text-body-sm leading-relaxed text-text-body">
                 Read the script, then say it in your own words while recording.
                 When you stop, review the transcript and ask for coaching notes.
               </p>
@@ -346,23 +349,23 @@ export default function PracticeSession() {
             <div>
               <label
                 htmlFor="transcript"
-                className="block text-sm font-medium text-slate-700"
+                className="block text-body-sm font-medium text-text-primary"
               >
                 What you said
                 {!speechSupported && (
-                  <span className="ml-2 font-normal text-slate-400">
+                  <span className="ml-2 font-normal text-text-muted">
                     (speech-to-text unavailable in this browser — type it here)
                   </span>
                 )}
               </label>
-              <textarea
+              <Textarea
                 id="transcript"
                 value={transcript}
                 onChange={(e) => setTranscript(e.target.value)}
                 rows={6}
                 maxLength={12000}
                 placeholder="Your recorded words appear here. Edit as needed before asking for feedback."
-                className="mt-1.5 w-full rounded-md border border-slate-300 px-3 py-2 text-sm leading-relaxed shadow-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
+                style={{ marginTop: 6 }}
               />
               {transcript.trim() && (
                 <button
@@ -374,7 +377,7 @@ export default function PracticeSession() {
                     setSignals(null);
                     setEffective(null);
                   }}
-                  className="mt-1.5 text-xs text-slate-500 underline"
+                  className="mt-1.5 text-caption text-text-muted underline"
                 >
                   Clear transcript
                 </button>
@@ -382,37 +385,33 @@ export default function PracticeSession() {
             </div>
 
             {audioUrl && (
-              <p className="text-xs text-slate-400">
+              <p className="text-caption text-text-muted">
                 Audio playback is available above until you leave this page — it
                 isn&apos;t saved.
               </p>
             )}
 
             <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
-              <button
-                type="button"
+              <Button
                 onClick={getFeedback}
                 disabled={loading || !script.trim() || !transcript.trim()}
-                className="inline-flex items-center rounded-lg bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {loading ? "Getting feedback…" : "Get feedback"}
-              </button>
+              </Button>
             </div>
 
             {demoLimited && (
-              <p className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+              <Callout tone="caution">
                 This demo has hit its usage limit for now. Thanks for trying
                 VocalGym — please check back later.
-              </p>
+              </Callout>
             )}
 
             {error && !demoLimited && (
-              <p className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                {error}
-              </p>
+              <Callout tone="critical">{error}</Callout>
             )}
           </div>
-        </section>
+        </Card>
 
         {effective && effective.rows.some((r) => r.score !== null) && (
           <EffectiveScore result={effective} signals={signals} />

@@ -5,6 +5,7 @@ import { NonverbalAnalyzer } from "@/lib/mediapipe";
 import { summarizeNonverbal, type NonverbalRawSample } from "@/lib/nonverbal";
 import { AudioMeter } from "@/lib/audioMeter";
 import type { AudioSummary, NonverbalMetrics } from "@/lib/types";
+import { Button, Callout } from "@/components/ui";
 
 interface SpeechAlternativeLike {
   transcript: string;
@@ -95,7 +96,7 @@ function Waveform({ active }: { active: boolean }) {
         <span
           key={i}
           className={`w-[3px] rounded-full ${
-            active ? "vg-wave-bar bg-red-500" : "bg-slate-300"
+            active ? "vg-wave-bar bg-live" : "bg-fog"
           }`}
           style={
             active ? { height: bar.h, animationDelay: bar.delay } : { height: "30%" }
@@ -401,29 +402,31 @@ export default function PracticeRecorder({
 
   return (
     <div
-      className={`rounded-xl border p-5 shadow-sm transition-colors sm:p-6 ${
-        recording ? "border-red-200 bg-red-50/50" : "border-slate-200 bg-white"
+      className={`rounded-card border p-5 shadow-sm transition-colors sm:p-6 ${
+        recording
+          ? "border-live/40 bg-status-critical-tint/40"
+          : "border-border-subtle bg-surface-card"
       }`}
     >
-      <label className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-sm text-slate-700">
+      <label className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-body-sm text-text-body">
         <input
           type="checkbox"
           checked={wantsVideo}
           onChange={toggleCamera}
           disabled={disabled || recording || videoState === "loading"}
-          className="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-500 disabled:opacity-50"
+          className="h-[18px] w-[18px] rounded-xs border-border-default text-ember focus:ring-ember/40 disabled:opacity-50"
         />
         <span>Use camera for body-language feedback</span>
         {videoState === "loading" && (
-          <span className="text-xs text-slate-400">loading models…</span>
+          <span className="text-caption text-text-muted">loading models…</span>
         )}
         {videoState === "ready" && !recording && (
-          <span className="text-xs font-medium text-emerald-600">
+          <span className="text-caption font-medium text-status-positive">
             camera ready
           </span>
         )}
       </label>
-      <p className="mt-1.5 text-xs leading-relaxed text-slate-400">
+      <p className="mt-1.5 text-caption leading-relaxed text-text-muted">
         Video is analyzed on your device with MediaPipe. Only the summary numbers
         are sent for feedback — the video never leaves your browser.
       </p>
@@ -443,14 +446,14 @@ export default function PracticeRecorder({
           autoPlay
           muted
           playsInline
-          className="w-full shrink-0 -scale-x-100 self-start rounded-lg border border-slate-200 bg-slate-900 sm:w-[260px]"
+          className="w-full shrink-0 -scale-x-100 self-start rounded-md border border-border-subtle bg-ink sm:w-[260px]"
         />
         {script?.trim() && (
-          <div className="max-h-56 min-w-0 flex-1 overflow-y-auto rounded-lg border border-slate-200 bg-slate-50 p-3 sm:max-h-[200px]">
-            <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+          <div className="max-h-56 min-w-0 flex-1 overflow-y-auto rounded-md border border-border-subtle bg-surface-sunken p-3 sm:max-h-[200px]">
+            <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-text-muted">
               Script
             </p>
-            <div className="whitespace-pre-wrap text-xs leading-relaxed text-slate-700">
+            <div className="whitespace-pre-wrap text-caption leading-relaxed text-text-body">
               {script}
             </div>
           </div>
@@ -458,47 +461,48 @@ export default function PracticeRecorder({
       </div>
 
       {videoError && (
-        <p className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+        <Callout tone="caution" className="mt-3">
           {videoError}
-        </p>
+        </Callout>
       )}
 
       <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-3">
         {!recording ? (
-          <button
-            type="button"
+          <Button
+            variant="primary"
+            size="lg"
+            icon="mic"
             onClick={start}
             disabled={disabled}
-            className="inline-flex w-full items-center justify-center gap-2.5 rounded-lg bg-slate-900 px-5 py-3 text-base font-semibold text-white shadow-sm transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+            className="w-full sm:w-auto"
           >
-            <span className="h-2.5 w-2.5 rounded-full bg-red-500" />
             {status === "recorded" ? "Record again" : "Start recording"}
-          </button>
+          </Button>
         ) : (
           <button
             type="button"
             onClick={stop}
-            className="inline-flex w-full items-center justify-center gap-2.5 rounded-lg border-2 border-red-300 bg-white px-5 py-3 text-base font-semibold text-red-700 transition hover:bg-red-50 sm:w-auto"
+            className="inline-flex w-full items-center justify-center gap-2.5 rounded-control border border-live bg-surface-card px-6 py-3 text-body font-semibold text-live transition hover:bg-status-critical-tint sm:w-auto"
           >
-            <span className="h-2.5 w-2.5 rounded-[2px] bg-red-600" />
+            <span className="h-2.5 w-2.5 rounded-xs bg-live" />
             Stop recording
           </button>
         )}
 
         {recording && (
-          <span className="flex items-center gap-2.5 text-sm font-medium text-red-600">
-            <span className="h-2 w-2 animate-pulse rounded-full bg-red-500 motion-reduce:animate-none" />
+          <span className="flex items-center gap-2.5 text-body-sm font-medium text-live">
+            <span className="h-2 w-2 animate-pulse rounded-full bg-live motion-reduce:animate-none" />
             <Waveform active />
             <span className="tabular-nums">
               Recording {formatElapsed(elapsed)}
             </span>
             {wantsVideo && (
-              <span className="font-normal text-red-400">· camera on</span>
+              <span className="font-normal text-text-muted">· camera on</span>
             )}
           </span>
         )}
         {status === "recorded" && elapsed > 0 && (
-          <span className="flex items-center gap-2.5 text-sm text-slate-500">
+          <span className="flex items-center gap-2.5 text-body-sm text-text-muted">
             <Waveform active={false} />
             <span className="tabular-nums">
               Last take {formatElapsed(elapsed)}
@@ -508,13 +512,13 @@ export default function PracticeRecorder({
       </div>
 
       {interim && (
-        <p className="mt-4 text-sm italic text-slate-500">{interim}…</p>
+        <p className="mt-4 text-body-sm italic text-text-muted">{interim}…</p>
       )}
 
       {error && (
-        <p className="mt-4 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+        <Callout tone="caution" className="mt-4">
           {error}
-        </p>
+        </Callout>
       )}
 
       {audioUrl && !recording && (

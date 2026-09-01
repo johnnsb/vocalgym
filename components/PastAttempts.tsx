@@ -5,6 +5,7 @@ import type { PracticeAttempt } from "@/lib/types";
 import FeedbackSections from "./FeedbackSections";
 import NonverbalSummary from "./NonverbalSummary";
 import EffectiveScore from "./EffectiveScore";
+import { Icon } from "@/components/ui";
 
 function formatStamp(ts: number): string {
   try {
@@ -87,12 +88,12 @@ export default function PastAttempts({ attempts, onDelete, onClearAll }: Props) 
   const groups = groupByScript(attempts);
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
-      <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-4 py-3">
-        <h2 className="flex items-center gap-1.5 text-sm font-semibold text-slate-700">
+    <div className="rounded-card border border-border-subtle bg-surface-card shadow-sm">
+      <div className="flex items-center justify-between gap-3 border-b border-border-subtle px-4 py-3">
+        <h2 className="flex items-center gap-1.5 text-body-sm font-semibold text-text-primary">
           Past attempts
           {attempts.length > 0 && (
-            <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-slate-500">
+            <span className="rounded-pill bg-surface-sunken px-1.5 py-0.5 text-caption font-medium text-text-muted">
               {attempts.length}
             </span>
           )}
@@ -101,7 +102,7 @@ export default function PastAttempts({ attempts, onDelete, onClearAll }: Props) 
           <button
             type="button"
             onClick={onClearAll}
-            className="text-xs text-slate-400 underline underline-offset-2 transition hover:text-slate-600"
+            className="text-caption text-text-muted underline underline-offset-2 transition hover:text-text-body"
           >
             Clear all
           </button>
@@ -109,22 +110,22 @@ export default function PastAttempts({ attempts, onDelete, onClearAll }: Props) 
       </div>
 
       {attempts.length === 0 ? (
-        <p className="px-4 py-10 text-center text-xs leading-relaxed text-slate-400">
+        <p className="px-4 py-10 text-center text-caption leading-relaxed text-text-muted">
           Your practice attempts will show up here.
         </p>
       ) : (
         <div className="lg:max-h-[calc(100vh-12rem)] lg:overflow-y-auto">
           {groups.map((group) => (
             <section key={group.key}>
-              <div className="sticky top-0 z-10 flex items-baseline gap-2 border-b border-slate-100 bg-slate-50/95 px-4 py-2 backdrop-blur">
-                <h3 className="truncate text-xs font-semibold text-slate-700">
+              <div className="sticky top-0 z-10 flex items-baseline gap-2 border-b border-border-subtle bg-surface-sunken/95 px-4 py-2 backdrop-blur">
+                <h3 className="truncate text-caption font-semibold text-text-primary">
                   {group.label}
                 </h3>
-                <span className="flex-none text-[10px] font-medium text-slate-400">
+                <span className="flex-none text-[10px] font-medium text-text-muted">
                   {group.attempts.length}
                 </span>
               </div>
-              <ul className="divide-y divide-slate-100">
+              <ul className="divide-y divide-border-subtle">
                 {group.attempts.map((attempt) => (
                   <AttemptRow
                     key={attempt.id}
@@ -156,35 +157,28 @@ function AttemptRow({
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        className="flex w-full items-start gap-2 px-4 py-3 text-left transition hover:bg-slate-50"
+        className="flex w-full items-start gap-2 px-4 py-3 text-left transition hover:bg-surface-hover"
       >
-        <svg
-          viewBox="0 0 20 20"
-          fill="currentColor"
-          aria-hidden="true"
-          className={`mt-0.5 h-3.5 w-3.5 flex-none text-slate-400 transition-transform ${
+        <Icon
+          name="chevron-right"
+          size={14}
+          className={`mt-0.5 flex-none text-text-muted transition-transform ${
             open ? "rotate-90" : ""
           }`}
-        >
-          <path
-            fillRule="evenodd"
-            d="M7.21 4.3a.75.75 0 011.06.02l5 5.25a.75.75 0 010 1.04l-5 5.25a.75.75 0 11-1.08-1.04L11.94 10 7.23 5.36a.75.75 0 01-.02-1.06z"
-            clipRule="evenodd"
-          />
-        </svg>
+        />
         <span className="min-w-0 flex-1">
           <span className="flex items-center gap-2">
-            <span className="text-xs font-medium text-slate-500">
+            <span className="text-caption font-medium text-text-muted">
               {formatStamp(attempt.createdAt)}
             </span>
             {attempt.effective && (
-              <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-600">
+              <span className="rounded-sm bg-surface-sunken px-1.5 py-0.5 text-[10px] font-semibold text-text-body">
                 Effective {attempt.effective.score}
               </span>
             )}
           </span>
           {!open && (
-            <span className="mt-0.5 block truncate text-xs text-slate-600">
+            <span className="mt-0.5 block truncate text-caption text-text-body">
               {previewOf(attempt.feedback)}
             </span>
           )}
@@ -194,13 +188,15 @@ function AttemptRow({
       {open && (
         <div className="space-y-3 px-4 pb-4">
           {attempt.situation && (
-            <p className="text-xs italic text-slate-400">{attempt.situation}</p>
+            <p className="text-caption italic text-text-muted">
+              {attempt.situation}
+            </p>
           )}
           <div>
-            <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">
+            <p className="mb-1 text-caption font-semibold uppercase tracking-wide text-text-muted">
               What you said
             </p>
-            <p className="whitespace-pre-wrap text-xs leading-relaxed text-slate-600">
+            <p className="whitespace-pre-wrap text-caption leading-relaxed text-text-body">
               {attempt.transcript}
             </p>
           </div>
@@ -212,7 +208,7 @@ function AttemptRow({
             <NonverbalSummary metrics={attempt.nonverbal} compact />
           )}
           <div>
-            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-400">
+            <p className="mb-1.5 text-caption font-semibold uppercase tracking-wide text-text-muted">
               Coaching notes
             </p>
             <FeedbackSections feedback={attempt.feedback} compact />
@@ -220,7 +216,7 @@ function AttemptRow({
           <button
             type="button"
             onClick={() => onDelete(attempt.id)}
-            className="text-xs text-slate-400 underline underline-offset-2 transition hover:text-red-600"
+            className="text-caption text-text-muted underline underline-offset-2 transition hover:text-status-critical"
           >
             Delete
           </button>

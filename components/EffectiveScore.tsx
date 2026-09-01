@@ -1,11 +1,6 @@
 import type { EffectiveResult, ObservableSignals } from "@/lib/types";
 import { SIGNAL_LABELS } from "@/lib/rubric";
-
-function toneClass(score: number): string {
-  if (score >= 66) return "text-emerald-600";
-  if (score >= 48) return "text-amber-600";
-  return "text-rose-600";
-}
+import { Card } from "@/components/ui";
 
 interface Props {
   result: EffectiveResult;
@@ -20,23 +15,17 @@ export default function EffectiveScore({ result, signals, compact }: Props) {
         .map((k) => `${SIGNAL_LABELS[k]} ${signals[k]}`)
     : [];
 
-  return (
-    <div
-      className={
-        compact
-          ? "space-y-3"
-          : "rounded-xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6"
-      }
-    >
+  const body = (
+    <>
       <div className="flex items-baseline gap-3">
-        <span className={`text-3xl font-bold tabular-nums ${toneClass(result.score)}`}>
+        <span className="font-mono text-[30px] font-semibold tabular-nums text-ember-text">
           {result.score}
         </span>
-        <span className="text-sm text-slate-400">/ 100</span>
-        <span className="text-sm font-semibold text-slate-700">
+        <span className="text-body-sm text-text-muted">/ 100</span>
+        <span className="text-body-sm font-semibold text-text-primary">
           {result.label}
         </span>
-        <span className="ml-auto text-xs text-slate-400">
+        <span className="ml-auto text-caption text-text-muted">
           Effective · rough estimate from this take
         </span>
       </div>
@@ -44,24 +33,24 @@ export default function EffectiveScore({ result, signals, compact }: Props) {
       <ul className="mt-3 space-y-2">
         {result.rows.map((row) => (
           <li key={row.attribute}>
-            <div className="flex items-center justify-between gap-3 text-sm">
-              <span className="font-medium text-slate-700">
+            <div className="flex items-center justify-between gap-3 text-body-sm">
+              <span className="font-medium text-text-primary">
                 {row.label}
-                <span className="ml-1.5 text-xs font-normal text-slate-400">
+                <span className="ml-1.5 text-caption font-normal text-text-muted">
                   {row.weight}%
                 </span>
               </span>
-              <span className="tabular-nums text-slate-600">
+              <span className="font-mono tabular-nums text-text-body">
                 {row.score === null ? "—" : `${row.score}/100`}
               </span>
             </div>
-            <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
+            <div className="mt-1 h-1.5 w-full overflow-hidden rounded-pill bg-surface-sunken">
               <div
-                className="h-full rounded-full bg-slate-800"
+                className="h-full rounded-pill bg-charcoal"
                 style={{ width: `${row.score ?? 0}%` }}
               />
             </div>
-            <div className="mt-1 text-xs text-slate-400">
+            <div className="mt-1 text-caption text-text-muted">
               {row.score === null
                 ? `not scored — needs ${row.missingSignals.join(", ")}`
                 : `from ${row.usedSignals.join(", ")}`}
@@ -71,10 +60,13 @@ export default function EffectiveScore({ result, signals, compact }: Props) {
       </ul>
 
       {readout.length > 0 && (
-        <p className="mt-3 border-t border-slate-100 pt-2 text-xs text-slate-400">
+        <p className="mt-3 border-t border-border-subtle pt-2 text-caption text-text-muted">
           Signals (0–100): {readout.join(" · ")}
         </p>
       )}
-    </div>
+    </>
   );
+
+  if (compact) return <div className="space-y-3">{body}</div>;
+  return <Card padding="sm">{body}</Card>;
 }
