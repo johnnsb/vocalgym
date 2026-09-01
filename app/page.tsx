@@ -1,5 +1,6 @@
 import Link from "next/link";
 import FeedbackWidget from "@/components/FeedbackWidget";
+import { Card } from "@/components/ui";
 
 const PATHS = [
   {
@@ -41,53 +42,56 @@ export default function Home() {
   return (
     <>
       <section className="mx-auto max-w-3xl px-4 py-16 text-center sm:py-24">
-        <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">
+        <h1 className="font-serif text-display text-text-primary sm:text-[52px] sm:leading-[60px]">
           Support for your difficult conversations
         </h1>
-        <p className="mx-auto mt-4 max-w-xl text-lg text-slate-600">
+        <p className="mx-auto mt-5 max-w-prose text-body text-text-body">
           Rehearse the conversation before you have it — script it, say it out
           loud, and see how you&apos;re really coming across.
         </p>
       </section>
 
-      <section className="mx-auto max-w-5xl px-4 pb-16">
+      <section className="mx-auto max-w-container px-4 pb-16 sm:px-8">
         <div className="grid gap-4 sm:grid-cols-3">
           {PATHS.map((p) => (
-            <Link
+            <Card
               key={p.href}
+              as={Link}
               href={p.href}
-              className="group flex flex-col rounded-xl border border-slate-200 bg-white p-6 shadow-sm transition hover:border-slate-300 hover:shadow-md"
+              interactive
+              className="group flex flex-col no-underline"
             >
-              <span className="text-sm font-semibold text-slate-900">
+              <span className="text-label font-semibold text-text-primary">
                 {p.kicker}
               </span>
-              <span className="mt-1 flex-1 text-sm text-slate-600">
+              <span className="mt-1.5 flex-1 text-body-sm text-text-body">
                 {p.line}
               </span>
-              <span className="mt-4 text-sm font-medium text-slate-900">
-                {p.cta}{" "}
-                <span className="inline-block transition group-hover:translate-x-0.5">
+              <span className="mt-4 inline-flex items-center gap-1 text-body-sm font-medium text-text-accent">
+                {p.cta}
+                <span className="transition-transform group-hover:translate-x-0.5">
                   &rarr;
                 </span>
               </span>
-            </Link>
+            </Card>
           ))}
         </div>
       </section>
 
-      <section id="how-it-works" className="border-t border-slate-200 bg-white">
-        <div className="mx-auto max-w-5xl px-4 py-16">
-          <h2 className="text-2xl font-bold tracking-tight">How it works</h2>
-          <ol className="mt-6 grid gap-6 sm:grid-cols-3">
+      <section
+        id="how-it-works"
+        className="border-y border-border-subtle bg-surface-sunken"
+      >
+        <div className="mx-auto max-w-container px-4 py-16 sm:px-8">
+          <h2 className="font-serif text-h2 text-text-primary">How it works</h2>
+          <ol className="mt-8 grid gap-8 sm:grid-cols-3">
             {STEPS.map((s, i) => (
               <li key={s.title}>
-                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-900 text-sm font-semibold text-white">
+                <span className="flex h-8 w-8 items-center justify-center rounded-pill bg-ember text-body-sm font-semibold text-[#FFF8EE]">
                   {i + 1}
                 </span>
-                <h3 className="mt-3 text-sm font-semibold text-slate-900">
-                  {s.title}
-                </h3>
-                <p className="mt-1 text-sm leading-relaxed text-slate-600">
+                <h3 className="mt-4 text-h4 text-text-primary">{s.title}</h3>
+                <p className="mt-1.5 text-body-sm leading-relaxed text-text-body">
                   {s.body}
                 </p>
               </li>
@@ -95,20 +99,20 @@ export default function Home() {
           </ol>
           <Link
             href="/how-it-works"
-            className="mt-6 inline-block text-sm font-medium text-slate-900 underline underline-offset-4 hover:text-slate-600"
+            className="mt-8 inline-block text-body-sm font-medium text-text-accent underline underline-offset-4 hover:text-text-primary"
           >
             Read the full walkthrough &rarr;
           </Link>
         </div>
       </section>
 
-      <footer className="border-t border-slate-200">
-        <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-x-6 gap-y-2 px-4 py-8 text-sm text-slate-400">
+      <footer className="border-t border-border-subtle">
+        <div className="mx-auto flex max-w-container flex-wrap items-center gap-x-6 gap-y-2 px-4 py-8 text-body-sm text-text-muted sm:px-8">
           <span>VocalGym — practice for the conversations that matter.</span>
-          <Link href="/how-it-works" className="hover:text-slate-600">
+          <Link href="/how-it-works" className="hover:text-text-body">
             How it works
           </Link>
-          <Link href="/faq" className="hover:text-slate-600">
+          <Link href="/faq" className="hover:text-text-body">
             FAQ
           </Link>
         </div>

@@ -20,8 +20,8 @@ export default function ExpertsPage() {
     <main className="mx-auto max-w-2xl px-4 py-12 sm:py-16">
       <header className="mb-8 flex flex-wrap items-start justify-between gap-x-6 gap-y-2">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Get expert help</h1>
-          <p className="mt-2 max-w-xl text-slate-600">
+          <h1 className="font-serif text-h2 text-text-primary">Get expert help</h1>
+          <p className="mt-2 max-w-prose text-body text-text-body">
             Tell us about the conversation and what you&apos;re stuck on. A coach
             will follow up by email with a tailored script you can then rehearse
             here.
@@ -29,7 +29,7 @@ export default function ExpertsPage() {
         </div>
         <Link
           href="/"
-          className="mt-1 whitespace-nowrap text-sm font-medium text-slate-500 underline underline-offset-4 transition hover:text-slate-800"
+          className="mt-1 whitespace-nowrap text-body-sm font-medium text-text-muted underline underline-offset-4 transition hover:text-text-primary"
         >
           ← Home
         </Link>
@@ -38,10 +38,10 @@ export default function ExpertsPage() {
       <ExpertRequestForm />
 
       <section className="mt-8">
-        <h2 className="text-sm font-semibold text-slate-700">
+        <h2 className="text-eyebrow uppercase text-text-muted">
           Common situations we help with
         </h2>
-        <ul className="mt-2 space-y-1 text-sm text-slate-500">
+        <ul className="mt-3 space-y-1 text-body-sm text-text-muted">
           {COMMON.map((c) => (
             <li key={c}>· {c}</li>
           ))}

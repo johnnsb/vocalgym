@@ -17,6 +17,7 @@ import {
 } from "@/lib/practiceStore";
 import { reportClientError } from "@/lib/clientErrors";
 import { EVENTS, track } from "@/lib/analytics";
+import { Button, Callout, Card, Field, Select, Textarea } from "@/components/ui";
 
 // The "I already know what I want to say" path. If there's a script in
 // localStorage already (generated on /generate, or brought here before), offer
@@ -173,9 +174,9 @@ export default function BringScriptFlow() {
 
   if (mode === "loading") {
     return (
-      <div className="rounded-lg border border-slate-200 bg-white p-6 text-sm text-slate-500 shadow-sm">
-        Loading…
-      </div>
+      <Card>
+        <p className="text-body-sm text-text-muted">Loading…</p>
+      </Card>
     );
   }
 
@@ -187,70 +188,60 @@ export default function BringScriptFlow() {
           ? "You saved this script earlier"
           : "Your current script";
     return (
-      <div className="space-y-4 rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+      <Card className="space-y-4">
         <div>
-          <p className="text-sm font-medium text-slate-700">
+          <p className="text-body-sm font-medium text-text-primary">
             {kind}
             {existing.tone && (
-              <span className="font-normal text-slate-400">
+              <span className="font-normal text-text-muted">
                 {" "}
                 · tuned for a {TONE_LABELS[existing.tone]} conversation
               </span>
             )}
           </p>
-          <div className="mt-2 max-h-64 overflow-y-auto whitespace-pre-wrap rounded-md border border-slate-200 bg-slate-50 p-3 text-xs leading-relaxed text-slate-700">
+          <div className="mt-2 max-h-64 overflow-y-auto whitespace-pre-wrap rounded-md border border-border-subtle bg-surface-sunken p-3 text-caption leading-relaxed text-text-body">
             {existing.script}
           </div>
         </div>
         <div className="flex flex-wrap gap-3">
-          <button
-            type="button"
+          <Button
             onClick={useExisting}
             disabled={saving}
-            className="inline-flex items-center rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+            iconAfter={saving ? undefined : "arrow-right"}
           >
-            {saving ? "Saving…" : "Use this script →"}
-          </button>
-          <button
-            type="button"
-            onClick={startCompose}
-            className="inline-flex items-center rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-          >
+            {saving ? "Saving…" : "Use this script"}
+          </Button>
+          <Button variant="secondary" onClick={startCompose}>
             Write my own instead
-          </button>
+          </Button>
         </div>
-      </div>
+      </Card>
     );
   }
 
   return (
-    <div className="space-y-4 rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
-      <div>
-        <label
-          htmlFor="script"
-          className="block text-sm font-medium text-slate-700"
-        >
-          What do you plan to say?
-        </label>
-        <textarea
+    <Card className="space-y-4">
+      <Field label="What do you plan to say?" htmlFor="script">
+        <Textarea
           id="script"
           value={script}
           onChange={(e) => setScript(e.target.value)}
           rows={10}
           maxLength={8000}
           placeholder="Paste your script or notes here…"
-          className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm leading-relaxed shadow-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
+          style={{ lineHeight: "var(--text-body-line)" }}
         />
         <div className="mt-2 flex flex-wrap items-center gap-2">
-          <span className="text-xs text-slate-400">or</span>
-          <button
-            type="button"
+          <span className="text-caption text-text-muted">or</span>
+          <Button
+            variant="secondary"
+            size="sm"
+            icon="upload"
             onClick={() => fileRef.current?.click()}
             disabled={uploading}
-            className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {uploading ? "Reading…" : "Upload a file"}
-          </button>
+          </Button>
           <input
             ref={fileRef}
             type="file"
@@ -258,22 +249,23 @@ export default function BringScriptFlow() {
             onChange={handleFile}
             className="hidden"
           />
-          <span className="text-xs text-slate-400">.txt, .md, or .pdf</span>
+          <span className="text-caption text-text-muted">.txt, .md, or .pdf</span>
         </div>
-      </div>
+      </Field>
 
-      <div>
-        <label
-          htmlFor="tone"
-          className="block text-sm font-medium text-slate-700"
-        >
-          Tone / context <span className="text-slate-400">(optional)</span>
-        </label>
-        <select
+      <Field
+        label={
+          <>
+            Tone / context{" "}
+            <span className="font-normal text-text-muted">(optional)</span>
+          </>
+        }
+        htmlFor="tone"
+      >
+        <Select
           id="tone"
           value={tone}
           onChange={(e) => handleToneChange(e.target.value as Tone | "")}
-          className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
         >
           <option value="">No preference</option>
           {TONES.map((t) => (
@@ -281,28 +273,19 @@ export default function BringScriptFlow() {
               {TONE_LABELS[t]}
             </option>
           ))}
-        </select>
-      </div>
+        </Select>
+      </Field>
 
-      {notice && !error && (
-        <p className="rounded-md border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-          {notice}
-        </p>
-      )}
-      {error && (
-        <p className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {error}
-        </p>
-      )}
+      {notice && !error && <Callout tone="info">{notice}</Callout>}
+      {error && <Callout tone="critical">{error}</Callout>}
 
-      <button
-        type="button"
+      <Button
         onClick={goPractice}
         disabled={!script.trim() || saving}
-        className="inline-flex items-center rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+        iconAfter={saving ? undefined : "arrow-right"}
       >
-        {saving ? "Saving…" : "Continue to practice →"}
-      </button>
-    </div>
+        {saving ? "Saving…" : "Continue to practice"}
+      </Button>
+    </Card>
   );
 }

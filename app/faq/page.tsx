@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Button } from "@/components/ui";
 
 export const metadata: Metadata = {
   title: "FAQ · VocalGym",
@@ -32,53 +33,47 @@ const FAQS = [
 
 export default function FaqPage() {
   return (
-    <main className="mx-auto max-w-2xl px-4 py-16">
+    <main className="mx-auto max-w-narrow px-4 py-16">
       <header className="mb-8 flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
-        <h1 className="text-3xl font-bold tracking-tight">FAQ</h1>
+        <h1 className="font-serif text-h2 text-text-primary">FAQ</h1>
         <Link
           href="/"
-          className="text-sm font-medium text-slate-500 underline underline-offset-4 transition hover:text-slate-800"
+          className="text-body-sm font-medium text-text-muted underline underline-offset-4 transition hover:text-text-primary"
         >
           &larr; Home
         </Link>
       </header>
 
-      <p className="text-slate-600">
+      <p className="max-w-prose text-body text-text-body">
         Still a work in progress — here&apos;s what comes up most. New to
         VocalGym?{" "}
         <Link
           href="/how-it-works"
-          className="font-medium underline underline-offset-2"
+          className="font-medium text-text-accent underline underline-offset-2"
         >
           How it works
         </Link>
         .
       </p>
 
-      <dl className="mt-8 divide-y divide-slate-100">
+      <dl className="mt-8 divide-y divide-border-subtle">
         {FAQS.map((item) => (
           <div key={item.q} className="py-5">
-            <dt className="text-base font-semibold text-slate-900">{item.q}</dt>
-            <dd className="mt-1.5 text-sm leading-relaxed text-slate-600">
+            <dt className="text-h4 text-text-primary">{item.q}</dt>
+            <dd className="mt-1.5 max-w-prose text-body-sm leading-relaxed text-text-body">
               {item.a}
             </dd>
           </div>
         ))}
       </dl>
 
-      <div className="mt-6 flex flex-wrap gap-3 text-sm">
-        <Link
-          href="/generate"
-          className="rounded-md bg-slate-900 px-4 py-2 font-medium text-white transition hover:bg-slate-700"
-        >
+      <div className="mt-6 flex flex-wrap gap-3">
+        <Button as={Link} href="/generate" variant="primary">
           Write a script
-        </Link>
-        <Link
-          href="/script"
-          className="rounded-md border border-slate-300 px-4 py-2 font-medium text-slate-700 transition hover:bg-slate-50"
-        >
+        </Button>
+        <Button as={Link} href="/script" variant="secondary">
           Bring your own
-        </Link>
+        </Button>
       </div>
     </main>
   );

@@ -11,6 +11,7 @@ import {
 import { ATTRIBUTE_RUBRIC, normalizeSelection, rubricPreset } from "@/lib/rubric";
 import { loadState, saveRubric, TONE_CHANGE_EVENT } from "@/lib/practiceStore";
 import { reportClientError } from "@/lib/clientErrors";
+import { Card } from "@/components/ui";
 
 const MAX = 4;
 
@@ -113,39 +114,43 @@ export default function RubricPicker() {
   const total = sel.attributes.reduce((s, a) => s + (sel.weights[a] || 0), 0);
 
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm sm:p-7">
+    <Card as="section" padding="lg">
       <div className="mb-1 flex items-baseline justify-between gap-3">
-        <h2 className="text-lg font-semibold">
+        <h2 className="text-h4 text-text-primary">
           What does &ldquo;effective&rdquo; mean here?
         </h2>
         {sel.custom && (
           <button
             type="button"
             onClick={() => commit(rubricPreset(tone))}
-            className="text-xs text-slate-400 underline underline-offset-2 hover:text-slate-600"
+            className="text-caption text-text-muted underline underline-offset-2 hover:text-text-body"
           >
             Use the {toneLabel} preset
           </button>
         )}
       </div>
 
-      <p className="mb-4 text-sm leading-relaxed text-slate-600">
+      <p className="mb-4 text-body-sm leading-relaxed text-text-body">
         {sel.custom ? (
           <>
             Custom — you&apos;ve set this by hand. Every take is scored as one{" "}
-            <strong>Effective</strong> number against these.
+            <strong className="text-text-primary">Effective</strong> number
+            against these.
           </>
         ) : tone ? (
           <>
-            Tuned for a <strong>{toneLabel}</strong> conversation. Every take is
-            scored as one <strong>Effective</strong> number against these — adjust
-            anything to make it your own.
+            Tuned for a{" "}
+            <strong className="text-text-primary">{toneLabel}</strong>{" "}
+            conversation. Every take is scored as one{" "}
+            <strong className="text-text-primary">Effective</strong> number
+            against these — adjust anything to make it your own.
           </>
         ) : (
           <>
-            A <strong>balanced</strong> default (no tone picked). Every take is
-            scored as one <strong>Effective</strong> number against these — adjust
-            anything to make it your own.
+            A <strong className="text-text-primary">balanced</strong> default (no
+            tone picked). Every take is scored as one{" "}
+            <strong className="text-text-primary">Effective</strong> number
+            against these — adjust anything to make it your own.
           </>
         )}
       </p>
@@ -161,10 +166,10 @@ export default function RubricPicker() {
               onClick={() => toggle(attr)}
               disabled={full || !hydrated}
               title={ATTRIBUTE_RUBRIC[attr].blurb}
-              className={`rounded-full border px-3 py-1.5 text-sm font-medium transition ${
+              className={`rounded-pill border px-3 py-1.5 text-body-sm font-medium transition-colors ${
                 on
-                  ? "border-slate-900 bg-slate-900 text-white"
-                  : "border-slate-300 text-slate-700 hover:bg-slate-50"
+                  ? "border-ink bg-ink text-text-inverse"
+                  : "border-border-default text-text-body hover:bg-surface-hover"
               } ${full ? "cursor-not-allowed opacity-40" : ""}`}
             >
               {on ? "✓ " : ""}
@@ -179,9 +184,9 @@ export default function RubricPicker() {
           {sel.attributes.map((attr, i) => (
             <div
               key={attr}
-              className="flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2"
+              className="flex items-center gap-3 rounded-md border border-border-subtle bg-surface-sunken px-3 py-2"
             >
-              <span className="w-4 text-center text-xs font-semibold text-slate-400">
+              <span className="w-4 text-center text-caption font-semibold text-text-muted">
                 {i + 1}
               </span>
               <div className="flex flex-col">
@@ -189,7 +194,7 @@ export default function RubricPicker() {
                   type="button"
                   onClick={() => move(attr, -1)}
                   disabled={i === 0}
-                  className="text-slate-400 hover:text-slate-700 disabled:opacity-25"
+                  className="text-text-muted hover:text-text-primary disabled:opacity-25"
                   aria-label={`Move ${attr} up`}
                 >
                   ▲
@@ -198,17 +203,17 @@ export default function RubricPicker() {
                   type="button"
                   onClick={() => move(attr, 1)}
                   disabled={i === sel.attributes.length - 1}
-                  className="text-slate-400 hover:text-slate-700 disabled:opacity-25"
+                  className="text-text-muted hover:text-text-primary disabled:opacity-25"
                   aria-label={`Move ${attr} down`}
                 >
                   ▼
                 </button>
               </div>
               <div className="min-w-0 flex-1">
-                <div className="text-sm font-medium text-slate-800">
+                <div className="text-body-sm font-medium text-text-primary">
                   {ATTRIBUTE_RUBRIC[attr].label}
                 </div>
-                <div className="truncate text-xs text-slate-500">
+                <div className="truncate text-caption text-text-muted">
                   {ATTRIBUTE_RUBRIC[attr].blurb}
                 </div>
               </div>
@@ -219,14 +224,14 @@ export default function RubricPicker() {
                   max={100}
                   value={sel.weights[attr] ?? 0}
                   onChange={(e) => setWeight(attr, e.target.value)}
-                  className="w-14 rounded-md border border-slate-300 px-2 py-1 text-right text-sm tabular-nums focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
+                  className="w-14 rounded-control border border-border-default bg-surface-card px-2 py-1 text-right text-body-sm tabular-nums focus:border-ember focus:outline-none"
                 />
-                <span className="text-sm text-slate-400">%</span>
+                <span className="text-body-sm text-text-muted">%</span>
               </div>
             </div>
           ))}
 
-          <div className="flex items-center justify-between pt-1 text-xs">
+          <div className="flex items-center justify-between pt-1 text-caption">
             <button
               type="button"
               onClick={() =>
@@ -236,16 +241,20 @@ export default function RubricPicker() {
                   custom: true,
                 })
               }
-              className="text-slate-500 underline underline-offset-2 hover:text-slate-800"
+              className="text-text-muted underline underline-offset-2 hover:text-text-primary"
             >
               Distribute evenly
             </button>
-            <span className={total === 100 ? "text-emerald-600" : "text-amber-600"}>
+            <span
+              className={
+                total === 100 ? "text-status-positive" : "text-text-accent"
+              }
+            >
               Total: {total}%{total !== 100 && " — will be scaled to 100%"}
             </span>
           </div>
         </div>
       )}
-    </section>
+    </Card>
   );
 }

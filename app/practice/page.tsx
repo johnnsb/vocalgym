@@ -12,15 +12,15 @@ export default function PracticePage() {
     <main className="mx-auto max-w-5xl px-4 py-12 sm:py-16">
       <header className="mb-10 flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Practice</h1>
-          <p className="mt-2 max-w-xl text-slate-600">
+          <h1 className="font-serif text-h2 text-text-primary">Practice</h1>
+          <p className="mt-2 max-w-prose text-body text-text-body">
             Rehearse your script out loud, then get specific notes on what landed
             and what to tighten before the real thing.
           </p>
         </div>
         <Link
           href="/"
-          className="mt-1 whitespace-nowrap text-sm font-medium text-slate-500 underline underline-offset-4 transition hover:text-slate-800"
+          className="mt-1 whitespace-nowrap text-body-sm font-medium text-text-muted underline underline-offset-4 transition hover:text-text-primary"
         >
           ← Home
         </Link>

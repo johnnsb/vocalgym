@@ -1,6 +1,12 @@
 "use client";
 
-import { useState, type ButtonHTMLAttributes, type CSSProperties, type ReactNode } from "react";
+import {
+  useState,
+  type ButtonHTMLAttributes,
+  type CSSProperties,
+  type ElementType,
+  type ReactNode,
+} from "react";
 import { Icon } from "./Icon";
 
 // Ported from the VocalGym Design System (components/core/Button.jsx).
@@ -53,6 +59,10 @@ export interface ButtonProps
   fullWidth?: boolean;
   disabled?: boolean;
   type?: "button" | "submit" | "reset";
+  /** Render as a different element (e.g. next/link's Link) for navigation CTAs.
+   *  When set, `type` / `disabled` are not applied and extra props pass through. */
+  as?: ElementType;
+  href?: string;
 }
 
 export function Button({
@@ -64,6 +74,7 @@ export function Button({
   fullWidth = false,
   disabled = false,
   type = "button",
+  as: Comp = "button",
   style,
   ...rest
 }: ButtonProps) {
@@ -71,11 +82,11 @@ export function Button({
   const [press, setPress] = useState(false);
   const v = VARIANTS[variant] || VARIANTS.primary;
   const s = SIZES[size] || SIZES.md;
+  const isButton = Comp === "button";
 
   return (
-    <button
-      type={type}
-      disabled={disabled}
+    <Comp
+      {...(isButton ? { type, disabled } : {})}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => {
         setHover(false);
@@ -118,6 +129,6 @@ export function Button({
       {icon ? <Icon name={icon} size={size === "sm" ? 16 : 18} /> : null}
       {children}
       {iconAfter ? <Icon name={iconAfter} size={size === "sm" ? 16 : 18} /> : null}
-    </button>
+    </Comp>
   );
 }

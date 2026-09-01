@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Button, Callout } from "@/components/ui";
 
 export const metadata: Metadata = {
   title: "How it works · VocalGym",
@@ -25,18 +26,18 @@ const STEPS = [
 // the scoring rubric, nonverbal signals) to come.
 export default function HowItWorksPage() {
   return (
-    <main className="mx-auto max-w-2xl px-4 py-16">
+    <main className="mx-auto max-w-narrow px-4 py-16">
       <header className="mb-10 flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
-        <h1 className="text-3xl font-bold tracking-tight">How it works</h1>
+        <h1 className="font-serif text-h2 text-text-primary">How it works</h1>
         <Link
           href="/"
-          className="text-sm font-medium text-slate-500 underline underline-offset-4 transition hover:text-slate-800"
+          className="text-body-sm font-medium text-text-muted underline underline-offset-4 transition hover:text-text-primary"
         >
           &larr; Home
         </Link>
       </header>
 
-      <p className="text-slate-600">
+      <p className="max-w-prose text-body text-text-body">
         VocalGym is a rehearsal loop for the conversations that feel high-stakes.
         Three steps:
       </p>
@@ -44,14 +45,12 @@ export default function HowItWorksPage() {
       <ol className="mt-8 space-y-8">
         {STEPS.map((s, i) => (
           <li key={s.title} className="flex gap-4">
-            <span className="flex h-7 w-7 flex-none items-center justify-center rounded-full bg-slate-900 text-sm font-semibold text-white">
+            <span className="flex h-8 w-8 flex-none items-center justify-center rounded-pill bg-ember text-body-sm font-semibold text-[#FFF8EE]">
               {i + 1}
             </span>
             <div>
-              <h2 className="text-base font-semibold text-slate-900">
-                {s.title}
-              </h2>
-              <p className="mt-1 text-sm leading-relaxed text-slate-600">
+              <h2 className="text-h4 text-text-primary">{s.title}</h2>
+              <p className="mt-1 max-w-prose text-body-sm leading-relaxed text-text-body">
                 {s.body}
               </p>
             </div>
@@ -59,28 +58,25 @@ export default function HowItWorksPage() {
         ))}
       </ol>
 
-      <div className="mt-12 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
+      <Callout tone="info" className="mt-12">
         More detail on the Effective score, the tone presets, and what the camera
         does (and doesn&apos;t) send is on the way. Questions in the meantime?{" "}
-        <Link href="/faq" className="font-medium underline underline-offset-2">
+        <Link
+          href="/faq"
+          className="font-medium text-text-accent underline underline-offset-2"
+        >
           See the FAQ
         </Link>
         .
-      </div>
+      </Callout>
 
-      <div className="mt-8 flex flex-wrap gap-3 text-sm">
-        <Link
-          href="/generate"
-          className="rounded-md bg-slate-900 px-4 py-2 font-medium text-white transition hover:bg-slate-700"
-        >
+      <div className="mt-8 flex flex-wrap gap-3">
+        <Button as={Link} href="/generate" variant="primary">
           Write a script
-        </Link>
-        <Link
-          href="/script"
-          className="rounded-md border border-slate-300 px-4 py-2 font-medium text-slate-700 transition hover:bg-slate-50"
-        >
+        </Button>
+        <Button as={Link} href="/script" variant="secondary">
           Bring your own
-        </Link>
+        </Button>
       </div>
     </main>
   );

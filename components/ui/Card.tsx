@@ -35,6 +35,8 @@ export interface CardProps extends HTMLAttributes<HTMLElement> {
   padding?: Padding;
   interactive?: boolean;
   as?: ElementType;
+  /** passthrough when `as` is a link component */
+  href?: string;
 }
 
 export function Card({

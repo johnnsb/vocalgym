@@ -1,34 +1,36 @@
 import Link from "next/link";
+import { Button } from "@/components/ui";
 
+// The marketing site's sticky translucent bar (the app itself uses no top bar,
+// but VocalGym keeps one nav across every route). Wordmark is text until the
+// brand PNGs land in /public/brand (see public/brand/README.md) — swap to
+// <BrandMark variant="lockup" /> then.
 export default function SiteHeader() {
   return (
-    <header className="border-b border-slate-200 bg-white">
-      <nav className="mx-auto flex h-14 max-w-5xl items-center justify-between px-4">
+    <header className="sticky top-0 z-30 border-b border-border-subtle bg-[rgba(250,247,241,0.86)] backdrop-blur-[14px] backdrop-saturate-150">
+      <nav className="mx-auto flex h-[var(--topbar-h)] max-w-container items-center justify-between px-4 sm:px-8">
         <Link
           href="/"
-          className="text-lg font-bold tracking-tight text-slate-900"
+          className="font-serif text-h4 font-semibold tracking-tight text-text-primary no-underline"
         >
           VocalGym
         </Link>
-        <div className="flex items-center gap-1 text-sm sm:gap-2">
+        <div className="flex items-center gap-1 text-body-sm sm:gap-3">
           <Link
             href="/how-it-works"
-            className="rounded-md px-2 py-1.5 text-slate-600 transition hover:text-slate-900"
+            className="rounded-sm px-2 py-1.5 text-text-body no-underline transition-colors hover:text-text-primary"
           >
             How it works
           </Link>
           <Link
             href="/faq"
-            className="rounded-md px-2 py-1.5 text-slate-600 transition hover:text-slate-900"
+            className="rounded-sm px-2 py-1.5 text-text-body no-underline transition-colors hover:text-text-primary"
           >
             FAQ
           </Link>
-          <Link
-            href="/signin"
-            className="rounded-md border border-slate-300 px-3 py-1.5 font-medium text-slate-700 transition hover:bg-slate-50"
-          >
+          <Button as={Link} href="/signin" variant="secondary" size="sm">
             Sign in
-          </Link>
+          </Button>
         </div>
       </nav>
     </header>

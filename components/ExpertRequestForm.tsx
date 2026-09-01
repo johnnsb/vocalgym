@@ -4,6 +4,7 @@ import { useState, type FormEvent } from "react";
 import Link from "next/link";
 import { reportClientError } from "@/lib/clientErrors";
 import { EVENTS, track } from "@/lib/analytics";
+import { Button, Callout, Card, Field, Input, Textarea } from "@/components/ui";
 
 export default function ExpertRequestForm() {
   const [name, setName] = useState("");
@@ -41,36 +42,30 @@ export default function ExpertRequestForm() {
 
   if (done) {
     return (
-      <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-6">
-        <h2 className="text-lg font-semibold text-emerald-900">
+      <Card tone="accent" className="space-y-1">
+        <h2 className="text-h4 text-text-primary">
           Thanks — we&apos;ll get back to you with a tailored script.
         </h2>
-        <p className="mt-1 text-sm text-emerald-800">
+        <p className="text-body-sm text-text-body">
           We&apos;ll reach out at {email}.
         </p>
         <Link
           href="/"
-          className="mt-4 inline-block text-sm font-medium text-emerald-900 underline"
+          className="mt-4 inline-block text-body-sm font-medium text-text-accent underline underline-offset-2"
         >
           Back home
         </Link>
-      </div>
+      </Card>
     );
   }
 
   return (
-    <form
-      onSubmit={handleSubmit}
-      className="space-y-4 rounded-xl border border-slate-200 bg-white p-6 shadow-sm"
-    >
-      <div>
-        <label
-          htmlFor="er-situation"
-          className="block text-sm font-medium text-slate-700"
-        >
-          What&apos;s the conversation, and what do you need help with?
-        </label>
-        <textarea
+    <Card as="form" onSubmit={handleSubmit} className="space-y-4">
+      <Field
+        label="What's the conversation, and what do you need help with?"
+        htmlFor="er-situation"
+      >
+        <Textarea
           id="er-situation"
           value={situation}
           onChange={(e) => setSituation(e.target.value)}
@@ -78,65 +73,45 @@ export default function ExpertRequestForm() {
           maxLength={4000}
           required
           placeholder="e.g. I'm negotiating my exit package and need help framing the ask without burning the bridge."
-          className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
         />
-      </div>
+      </Field>
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <div>
-          <label
-            htmlFor="er-name"
-            className="block text-sm font-medium text-slate-700"
-          >
-            Your name
-          </label>
-          <input
+        <Field label="Your name" htmlFor="er-name">
+          <Input
             id="er-name"
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
             maxLength={200}
             required
-            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
           />
-        </div>
-        <div>
-          <label
-            htmlFor="er-email"
-            className="block text-sm font-medium text-slate-700"
-          >
-            Email
-          </label>
-          <input
+        </Field>
+        <Field label="Email" htmlFor="er-email">
+          <Input
             id="er-email"
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             maxLength={320}
             required
-            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
           />
-        </div>
+        </Field>
       </div>
 
-      {error && (
-        <p className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {error}
-        </p>
-      )}
+      {error && <Callout tone="critical">{error}</Callout>}
 
-      <button
+      <Button
         type="submit"
         disabled={
           submitting || !name.trim() || !email.trim() || !situation.trim()
         }
-        className="inline-flex items-center rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
       >
         {submitting ? "Sending…" : "Send request"}
-      </button>
-      <p className="text-xs text-slate-400">
+      </Button>
+      <p className="text-caption text-text-muted">
         We&apos;ll only use your email to follow up about this request.
       </p>
-    </form>
+    </Card>
   );
 }

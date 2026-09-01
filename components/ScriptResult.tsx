@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { Button, Card } from "@/components/ui";
 
 interface Props {
   script: string;
@@ -24,43 +25,44 @@ export default function ScriptResult({ script, loading, onRegenerate }: Props) {
   }
 
   return (
-    <section className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+    <Card>
       <div className="mb-4 flex items-center justify-between gap-3">
-        <h2 className="text-lg font-semibold">Your script</h2>
+        <h2 className="text-h4 text-text-primary">Your script</h2>
         <div className="flex gap-2">
-          <button
-            type="button"
+          <Button
+            variant="secondary"
+            size="sm"
+            icon={copied ? "check" : "copy"}
             onClick={copy}
-            className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
           >
-            {copied ? "Copied!" : "Copy"}
-          </button>
+            {copied ? "Copied" : "Copy"}
+          </Button>
           {onRegenerate && (
-            <button
-              type="button"
+            <Button
+              variant="secondary"
+              size="sm"
+              icon="rotate-ccw"
               onClick={onRegenerate}
               disabled={loading}
-              className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {loading ? "Regenerating…" : "Regenerate"}
-            </button>
+            </Button>
           )}
         </div>
       </div>
 
-      <div className="whitespace-pre-wrap text-sm leading-relaxed text-slate-800">
+      <div className="whitespace-pre-wrap text-body-sm leading-relaxed text-text-primary">
         {script}
       </div>
 
-      <div className="mt-6 flex items-center justify-between gap-3 border-t border-slate-100 pt-4">
-        <p className="text-sm text-slate-500">Ready to rehearse it out loud?</p>
-        <Link
-          href="/practice"
-          className="inline-flex items-center rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-700"
-        >
-          Practice this script →
-        </Link>
+      <div className="mt-6 flex items-center justify-between gap-3 border-t border-border-subtle pt-4">
+        <p className="text-body-sm text-text-muted">
+          Ready to rehearse it out loud?
+        </p>
+        <Button as={Link} href="/practice" iconAfter="arrow-right">
+          Practice this script
+        </Button>
       </div>
-    </section>
+    </Card>
   );
 }

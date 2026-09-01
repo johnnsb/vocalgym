@@ -12,6 +12,7 @@ import {
 } from "@/lib/practiceStore";
 import { reportClientError } from "@/lib/clientErrors";
 import { EVENTS, track } from "@/lib/analytics";
+import { Callout } from "@/components/ui";
 
 // The "help me find the words" path: describe the situation, Claude drafts a
 // script. (The "bring your own words" path lives in BringScriptFlow.)
@@ -139,17 +140,13 @@ export default function GenerateFlow() {
       />
 
       {demoLimited && (
-        <p className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+        <Callout tone="caution">
           This demo has hit its usage limit for now. Thanks for trying VocalGym —
           please check back later.
-        </p>
+        </Callout>
       )}
 
-      {error && !demoLimited && (
-        <p className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {error}
-        </p>
-      )}
+      {error && !demoLimited && <Callout tone="critical">{error}</Callout>}
 
       {script && !error && (
         <>
