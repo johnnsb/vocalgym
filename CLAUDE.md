@@ -286,3 +286,4 @@ signals — rolled up into a single "Effective" score.
 - After completing a feature or meaningful architectural change, update this
   CLAUDE.md file to reflect the new state (architecture, tech stack,
   "not yet built" list) before considering the task done.
+
