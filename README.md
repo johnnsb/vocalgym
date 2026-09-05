@@ -68,6 +68,15 @@ Claude Design project — see **Design system** below.
 
    Open <http://localhost:3000>.
 
+   `npm run dev` auto-clears the `.next` build cache whenever the git commit
+   has changed since the last time you ran it (`predev` ->
+   `scripts/devCacheGuard.mjs`) — a `next dev` process that stays running
+   across a branch switch/merge/rebase/pull can end up serving a stale cache
+   whose asset manifest no longer matches what's on disk (symptom: the page
+   loads with zero CSS applied). The guard makes that a non-issue; it's a
+   no-op on the normal edit-save-reload loop. If you ever still hit an
+   unstyled page, the manual fix is `rm -rf .next && npm run dev`.
+
 ## Project structure
 
 ```

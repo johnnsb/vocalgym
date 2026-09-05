@@ -239,6 +239,12 @@ signals — rolled up into a single "Effective" score.
 ## Conventions
 - Keep features additive/isolated — new features get their own route/module,
   don't modify working existing flows unless explicitly asked
+- `npm run dev`'s `predev` hook (`scripts/devCacheGuard.mjs`) clears `.next`
+  whenever HEAD has moved since the last `npm run dev` — a `next dev` process
+  left running across a branch switch/merge/rebase can serve a stale build
+  cache whose CSS/JS manifest no longer matches disk (symptom: a fully
+  unstyled page). No-op on the normal edit-save-reload loop. See README.md
+  "Getting started".
 - Style with the design system: `components/ui/` primitives + the token
   Tailwind utilities. Don't hand-roll `bg-slate-*` / `rounded-xl border`
   card/button/input markup — a primitive already covers it. No feature colors;
