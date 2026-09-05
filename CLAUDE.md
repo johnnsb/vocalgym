@@ -169,6 +169,29 @@ signals — rolled up into a single "Effective" score.
     `general_feedback_rating`). Dashboard-created PostHog surveys also render
     since `disable_surveys` is left default.
 
+## Site-wide password gate
+- Optional, off by default. `SITE_PASSWORD` unset/blank (the default in
+  `.env.local`) fully bypasses it — `middleware.ts` skips the check entirely,
+  so local dev behaves exactly as before.
+- When set, `middleware.ts` requires a valid `vg_gate` cookie on every
+  request; missing/invalid redirects to `/gate?next=<original path>`
+  (`/gate` and `/api/gate` are exempted from the check itself, or the
+  redirect would loop). `next` is sanitized (`lib/gate.ts`
+  `sanitizeNextPath`) to a same-site path only — no open redirect via a
+  crafted `?next=`.
+- `/gate` (`components/GateForm.tsx`) is a design-system-styled centered
+  form (Card/Field/Input/Button primitives, the `lock` icon) that POSTs to
+  `POST /api/gate`. On a correct password it sets `vg_gate` — httpOnly,
+  `SameSite=lax`, 1-year `Max-Age`, same shape as the `vg_sid` session
+  cookie — then does a full-navigation redirect to `next`.
+- The cookie never holds the plaintext password: its value is a salted
+  SHA-256 digest of `SITE_PASSWORD` (`lib/gate.ts`, via Web Crypto's
+  `crypto.subtle` so the same code runs in `middleware.ts`'s Edge runtime
+  and the Node API route). Middleware recomputes the expected digest fresh
+  from the env var on every request rather than storing anything.
+- Unrelated to `USAGE_ADMIN_TOKEN` (that gates a couple of admin endpoints;
+  this gates the entire app) — see README.md "Site-wide password gate".
+
 ## Quality evals (`evals/`)
 - Separate from unit tests — measures AI **output quality**, not correctness.
   Run manually (`npm run eval`, `tsx` devDependency); not wired into CI or any
@@ -249,10 +272,10 @@ signals — rolled up into a single "Effective" score.
   Tailwind utilities. Don't hand-roll `bg-slate-*` / `rounded-xl border`
   card/button/input markup — a primitive already covers it. No feature colors;
   amber/red notices are `<Callout tone="caution"/"critical">`.
-- .env.local (gitignored, never commit) holds ANTHROPIC_API_KEY and
-  DATABASE_URL / DATABASE_URL_POOLED (secret) plus NEXT_PUBLIC_SENTRY_DSN,
-  NEXT_PUBLIC_POSTHOG_KEY / NEXT_PUBLIC_POSTHOG_HOST and DEMO_REQUEST_LIMIT (not
-  secret); all documented in .env.example. The two DATABASE_* vars are ALSO kept
+- .env.local (gitignored, never commit) holds ANTHROPIC_API_KEY,
+  DATABASE_URL / DATABASE_URL_POOLED, and SITE_PASSWORD (secret) plus
+  NEXT_PUBLIC_SENTRY_DSN, NEXT_PUBLIC_POSTHOG_KEY / NEXT_PUBLIC_POSTHOG_HOST
+  and DEMO_REQUEST_LIMIT (not secret); all documented in .env.example. The two DATABASE_* vars are ALSO kept
   in `.env` (gitignored) because the Prisma CLI reads only `.env`; keep the two
   files in sync.
 - Server DB access goes through the `prisma` singleton in `lib/prisma.ts` — never
