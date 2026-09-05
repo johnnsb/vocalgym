@@ -169,6 +169,30 @@ signals — rolled up into a single "Effective" score.
     `general_feedback_rating`). Dashboard-created PostHog surveys also render
     since `disable_surveys` is left default.
 
+## Quality evals (`evals/`)
+- Separate from unit tests — measures AI **output quality**, not correctness.
+  Run manually (`npm run eval`, `tsx` devDependency); not wired into CI or any
+  schedule. Re-run by hand when `lib/prompt.ts` or `MODEL`
+  (`lib/anthropic.ts`) changes. Full docs: README.md "Quality evals".
+- `evals/dataset.ts` — 13 realistic situations spanning all 6 tone presets.
+- `evals/generateSyntheticAttempt.ts` — a Claude call that synthesizes a
+  rehearsal transcript standing in for a human attempt, at `strong` /
+  `average` / `weak` delivery quality (deliberately varies filler words,
+  on-script vs. rambling, length).
+- `evals/run.ts` — for each case, calls the **real** `generateScript()` and
+  `generatePracticeFeedback()` (production paths, not mocks) on each
+  synthetic attempt; runs transcripts through the real `lib/rubric.ts`
+  signal/Effective-score computation (no camera).
+- `evals/judge.ts` — a separate Claude call (default `claude-opus-5`,
+  deliberately not `MODEL`) scores each feedback response on specificity,
+  weakest-area accuracy, and tone appropriateness. Whether a weak attempt's
+  Effective score actually came out below a strong one's is checked
+  deterministically in `run.ts`, not judged.
+- Output: `evals/results/<ISO-timestamp>.json` (gitignored — generated, costs
+  API spend to reproduce), stamped with `model` / `judgeModel` /
+  `syntheticModel` / `PROMPT_VERSION` (`lib/prompt.ts` — bump it when prompts
+  change meaningfully) / git commit, so runs are comparable over time.
+
 ## Effectiveness rubric + score
 - 8 aspirational attributes (Connected / Present / Smooth / Composed / Warm /
   Confident / Grounded / Clear). Each maps to a weighted blend of observable

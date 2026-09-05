@@ -7,6 +7,14 @@ import type {
 import { formatNonverbalForPrompt } from "./nonverbal";
 import { formatRubricForPrompt } from "./rubric";
 
+/**
+ * Bump this whenever SYSTEM_PROMPT, FEEDBACK_SYSTEM_PROMPT, or the prompt
+ * builders below change meaningfully. evals/run.ts stamps every result file
+ * with it so quality runs stay comparable (or clearly not) across prompt
+ * revisions — see evals/README.md.
+ */
+export const PROMPT_VERSION = "1.0.0";
+
 export const SYSTEM_PROMPT = `You are a communication coach. You help people prepare for real, spoken conversations that feel high-stakes to them — difficult family talks, negotiations, pitches, feedback, apologies, and the like.
 
 Given a situation, produce a short, practical script the person can rehearse out loud in two to three minutes.

@@ -313,6 +313,56 @@ for JSON). Both are gated by `USAGE_ADMIN_TOKEN` when it's set — `?token=…` 
 fulfil these manually by replying to the email with a script the user can then
 paste into `/script`.
 
+## Quality evals
+
+Separate from unit tests — this measures **output quality** (does the script/
+feedback read well and coach the right thing), not correctness. Lives in
+`evals/`, runs manually, and is **not** wired into CI or any schedule; re-run
+it by hand whenever a prompt (`lib/prompt.ts`) or `MODEL` (`lib/anthropic.ts`)
+changes.
+
+```bash
+npm run eval                                  # full dataset (13 cases)
+EVAL_CASE_IDS=raise-ask npm run eval          # one case, for a quick/cheap check
+EVAL_CONCURRENCY=4 npm run eval               # default is 3 in-flight cases
+EVAL_JUDGE_MODEL=claude-sonnet-5 npm run eval # cheaper judge, default claude-opus-5
+```
+
+What it does, per `evals/dataset.ts` case (13 realistic situations spanning
+all 6 tone presets):
+
+1. Calls the **real** `generateScript()` — the actual production code path,
+   not a mock.
+2. Generates a synthetic rehearsal transcript at `strong` / `average` / `weak`
+   delivery quality (`evals/generateSyntheticAttempt.ts`) — a separate Claude
+   call that deliberately varies filler words, on-script vs. rambling, and
+   length so the eval set has intentionally good *and* bad takes.
+3. Runs that transcript through the same `lib/rubric.ts` signal + Effective-
+   score computation the app uses client-side (no camera — this models a
+   no-video session).
+4. Calls the **real** `generatePracticeFeedback()` on the (script, transcript,
+   Effective score) — again the actual production path.
+5. Grades the feedback with an LLM judge (`evals/judge.ts`, default
+   `claude-opus-5` — deliberately not the model under test) on three rubric
+   criteria, each a 1–5 score + one-sentence reasoning:
+   - **Specificity** — does it reference specifics from *this* transcript,
+     not generic coaching filler?
+   - **Weakest-area accuracy** — the judge independently names the delivery's
+     weakest aspect, then checks whether the feedback's Gaps/Delivery/Next-take
+     sections named the same thing.
+   - **Tone appropriateness** — does the coaching register match the
+     situation (gentle for supportive/personal, measured for high-stakes, …)?
+6. Checks, deterministically (not judged — this one's a fact, not an opinion),
+   that the weak attempt's computed Effective score actually came out lower
+   than the strong attempt's.
+
+Results are written to `evals/results/<ISO-timestamp>.json`, gitignored
+(they're generated, cost real API spend to reproduce, and embed full scripts/
+transcripts) but stamped with `model`, `judgeModel`, `syntheticModel`,
+`promptVersion` (bump `PROMPT_VERSION` in `lib/prompt.ts` when the prompts
+change meaningfully), and the git commit, so runs stay comparable over time.
+A console summary prints alongside the file.
+
 ## Notes
 
 - No auth yet. The current script, rubric, and past practice attempts
