@@ -138,6 +138,13 @@ lib/
   analytics.ts                     Lazy PostHog wrapper: track() / pageviews / EVENTS (key-gated)
   expertRequests.ts                ExpertRequest table access for "get expert help"
   prisma.ts                        Shared PrismaClient singleton (HMR-safe); pooled at runtime
+evals/                             Quality evals (npm run eval) — see "Quality evals" below
+  dataset.ts                       13 test situations spanning all 6 tone presets
+  client.ts                        Shared Anthropic client for eval-only calls (synthetic + judge)
+  generateSyntheticAttempt.ts      Synthesizes strong/average/weak rehearsal transcripts
+  judge.ts                         LLM judge — scores feedback on specificity/weakest-area/tone
+  run.ts                           Runner: calls the real generateScript/generatePracticeFeedback
+  results/                         Gitignored timestamped JSON output
 ```
 
 ## Configuration
