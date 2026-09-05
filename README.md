@@ -75,7 +75,7 @@ instrumentation.ts                 Sentry server/edge init (Next 14 hook)
 instrumentation-client.ts          Sentry browser init
 sentry.server.config.ts            \
 sentry.edge.config.ts               } Sentry.init() per runtime (no-op without DSN)
-middleware.ts                      Ensures the anonymous `vg_sid` session cookie
+middleware.ts                      Ensures the anonymous `vg_sid` cookie + the `vg_gate` password-gate check
 prisma/
   schema.prisma                    Session / Attempt / ExpertRequest / UsageCounter
   migrations/                      Committed SQL migrations (prisma migrate)
@@ -88,6 +88,8 @@ app/
   api/attempts/[id]/route.ts       DELETE one attempt (session-scoped)
   api/usage-count/route.ts         GET the demo counter (see "Demo usage cap")
   api/expert-request/route.ts      POST save an expert-help request; GET lists them
+  api/gate/route.ts                POST { password } -> sets the vg_gate cookie or 401s
+  gate/page.tsx                    Password-gate form (see "Site-wide password gate")
   global-error.tsx                 Catches React render crashes -> Sentry
   layout.tsx                       Root layout (+ SiteHeader nav, AnalyticsProvider)
   providers.tsx                    Client analytics bootstrap + route-change $pageview
@@ -108,6 +110,7 @@ components/
   GenerateFlow.tsx                 AI-generate path: form + result + state restore
   BringScriptFlow.tsx              Bring-your-own path: use existing / paste / upload
   ExpertRequestForm.tsx            Expert-help contact form + confirmation
+  GateForm.tsx                     Password-gate form, posts to /api/gate
   ScriptForm.tsx                   Situation textarea + quick-start examples + tone
   ScriptResult.tsx                 Rendered script with copy / regenerate / practice
   RubricPicker.tsx                 Tone-tuned "effective" qualities, editable
@@ -125,6 +128,7 @@ lib/
   types.ts                         Shared types (tones, metrics, rubric, signals, score)
   practiceStore.ts                 Client fetch wrapper over /api/state + /api/attempts
   session.ts                       getSessionId() / ensureSession() — reads the vg_sid cookie
+  gate.ts                          Site-password-gate logic — vg_gate cookie digest, next-path sanitizing
   sessionState.server.ts           Server data layer: get/patch state, add/remove/clear attempts
   nonverbal.ts                     Pure: summarize webcam samples, sanitize, format for prompt
   mediapipe.ts                     NonverbalAnalyzer — lazy-loads MediaPipe, one frame -> metrics
@@ -306,6 +310,38 @@ it can overshoot by a few.
 - **Where it's stored** — the single-row `UsageCounter` table (`id = 1`).
   `recordRequest()` does an atomic `upsert … { increment: 1 }`, so it's durable
   across restarts / serverless cold starts and roughly concurrency-safe.
+
+## Site-wide password gate
+
+Optional, off by default — gates the **entire app** behind a single shared
+password. Useful for a staging/preview deploy you don't want publicly
+crawlable yet; unrelated to `USAGE_ADMIN_TOKEN` above, which only gates a
+couple of admin endpoints.
+
+- **Enable it** — set `SITE_PASSWORD` in `.env.local` (or your host's env
+  vars). **Leave it blank/unset and the gate is fully bypassed** —
+  `middleware.ts` skips the check entirely, so local dev works exactly as it
+  does today with no extra step.
+- **How it works** — `middleware.ts` (which already ensures the anonymous
+  `vg_sid` session cookie) also checks for a valid `vg_gate` cookie on every
+  request when `SITE_PASSWORD` is set. Missing or invalid → redirect to
+  `/gate?next=<original path>`, so you land back where you meant to go after
+  entering the password. `/gate` and `POST /api/gate` are exempted from the
+  check itself (otherwise the redirect would loop into itself).
+- **The `/gate` page** (`components/GateForm.tsx`) is a centered form styled
+  with the same design-system primitives as the rest of the app (Card,
+  Field, Input, Button, the `lock` icon), with a clear inline error on a
+  wrong password.
+- **The cookie** — set by `POST /api/gate` on a correct password: httpOnly,
+  `SameSite=lax`, 1-year `Max-Age`, same shape as `vg_sid`. Its value is a
+  salted SHA-256 digest of `SITE_PASSWORD` (`lib/gate.ts`), never the
+  plaintext password — middleware recomputes the expected digest from the
+  env var on every request rather than storing anything server-side.
+  Web-Crypto-based (`crypto.subtle`), so the same code runs unmodified in
+  middleware's Edge runtime and the API route's Node runtime.
+- **Rotating the password** — just change `SITE_PASSWORD` and redeploy;
+  every existing `vg_gate` cookie stops matching immediately (no cookie
+  version/allowlist to manage).
 
 ## Expert-help requests
 
