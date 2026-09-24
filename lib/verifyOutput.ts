@@ -60,7 +60,18 @@ export interface QuestionsCheck {
   reason?: string;
 }
 
-/** Generated questions should be a handful of non-trivial, actual questions. */
+/** Upper bound on a single spoken question. The prompts target ~25-30 words
+ *  (~150-200 chars); this is a backstop against a runaway reply, not the target.
+ *  Nothing upstream truncates, so exceeding it fails instead of clipping. */
+const MAX_QUESTION_CHARS = 400;
+
+/** A complete question ends in "?" (allowing a trailing quote/bracket). A
+ *  reply cut off by max_tokens, or one that's a statement, fails this. */
+function isCompleteQuestion(q: string): boolean {
+  return /\?["'”’)\]]*$/.test(q.trim());
+}
+
+/** Generated questions should be a handful of non-trivial, complete questions. */
 export function verifyQuestions(questions: unknown): QuestionsCheck {
   if (!Array.isArray(questions) || questions.length === 0) {
     return { ok: false, reason: "empty" };
@@ -70,6 +81,12 @@ export function verifyQuestions(questions: unknown): QuestionsCheck {
     (q) => typeof q !== "string" || q.trim().length < 8,
   );
   if (bad) return { ok: false, reason: "malformed-item" };
+  if (questions.some((q) => q.trim().length > MAX_QUESTION_CHARS)) {
+    return { ok: false, reason: "item-too-long" };
+  }
+  if (!questions.every((q) => isCompleteQuestion(q))) {
+    return { ok: false, reason: "item-not-a-question" };
+  }
   return { ok: true };
 }
 
@@ -78,14 +95,17 @@ export interface FollowUpCheck {
   reason?: string;
 }
 
-/** A follow-up should be a single non-trivial question, not empty or a wall
- *  of text (which would suggest the model ignored the "ONLY the question"
- *  instruction). */
+/** A follow-up should be a single, complete, non-trivial question — not empty,
+ *  not a wall of text (the model ignored the "ONLY the question" instruction),
+ *  and not cut off mid-sentence (no trailing "?"). */
 export function verifyFollowUp(text: unknown): FollowUpCheck {
   if (typeof text !== "string" || text.trim().length < 8) {
     return { ok: false, reason: "empty-or-too-short" };
   }
-  if (text.trim().length > 400) return { ok: false, reason: "too-long" };
+  if (text.trim().length > MAX_QUESTION_CHARS) {
+    return { ok: false, reason: "too-long" };
+  }
+  if (!isCompleteQuestion(text)) return { ok: false, reason: "not-a-question" };
   return { ok: true };
 }
 

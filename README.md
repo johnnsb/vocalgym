@@ -270,8 +270,10 @@ wrapper over `GET/PATCH /api/state` and `POST/DELETE /api/attempts`.
   practice-feedback response contains all 5 sections (Overall / What landed /
   Gaps vs. the script / Delivery / For your next take) and that a generated
   script is non-empty and structured, plus the `/grill` equivalents (4
-  sections for `qa-feedback`; non-empty/well-formed for `generate-questions`
-  and `followup-question`). A failure is logged + sent to Sentry and the route
+  sections for `qa-feedback`; for `generate-questions` and
+  `followup-question`, each question must be complete — ending in `?`, at most
+  400 chars; nothing upstream truncates, so a cut-off reply fails rather than
+  shipping mid-sentence). A failure is logged + sent to Sentry and the route
   returns a graceful `502` (`code: feedback_incomplete` / `script_malformed` /
   `questions_malformed` / `followup_malformed`) instead of rendering partial
   content.
@@ -387,8 +389,10 @@ too, then get qualitative feedback across both exchanges. It's not linked from
 the landing page or nav yet — reach it at `/grill` directly.
 
 1. `POST /api/generate-questions` — `{ source }` → `{ questions }`, a
-   numbered list of 3–6 likely reviewer questions, parsed the same way
-   `generateScript` splits its leading `Title:` line.
+   numbered list of 3–6 likely reviewer questions (only numbered lines are
+   kept). The prompt asks for single, direct, one-sentence questions (~25
+   words, no compound "…and what if…" second half), since each is answered out
+   loud on the spot.
 2. Pick a question, answer it with `PracticeRecorder` (reused as-is, plus one
    new optional `contentLabel` prop so the side panel reads "Question" instead
    of "Script"). Same manual-transcript fallback as `/practice` for browsers
@@ -397,6 +401,12 @@ the landing page or nav yet — reach it at `/grill` directly.
    otherQuestions }` → `{ followUp }`, one question from Claude that presses
    on something concrete and real in the answer (an unsupported claim, a gap
    vs. the source, a vague number) rather than a generic "can you elaborate."
+   The source and the spoken answer go to the model in separate XML tags
+   (`<source_material>` / `<candidate_answer>`) with an explicit attribution
+   rule: only what's in the source may be described as "in the proposal";
+   anything only in the answer is "you said". This is the core of the feature —
+   an earlier `--- SOURCE MATERIAL ---`-header version once presented a detail
+   the user had only said aloud as part of the plan.
 4. Answer the follow-up the same way, then `POST /api/qa-feedback` — `{
    source, exchanges }` → `{ feedback }`, qualitative Markdown across both
    exchanges (**Overall** / **Accuracy vs. source** / **Composure** / **For

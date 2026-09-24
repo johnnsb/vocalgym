@@ -74,7 +74,8 @@ signals — rolled up into a single "Effective" score.
   the Effective score are sent. The rubric strip's "change" does `router.back()`.
 - `/grill` (`GrillSession`) — "defend your work" v0 prototype: upload/paste
   material → POST /api/generate-questions → a numbered list of likely reviewer
-  questions → pick one → record an answer (`PracticeRecorder`, reused as-is
+  questions (prompted to be single, direct, one-sentence questions — they're
+  answered out loud) → pick one → record an answer (`PracticeRecorder`, reused as-is
   plus one new optional `contentLabel` prop so its side panel says "Question"
   instead of "Script") → POST /api/followup-question (original question +
   transcript + source material + the other questions, so it doesn't duplicate
@@ -162,8 +163,10 @@ signals — rolled up into a single "Effective" score.
   - Before returning, `lib/verifyOutput.ts` checks the feedback has all 5
     required sections (Nonverbal is optional) and the script is
     non-empty/structured, plus the `/grill` equivalents (4 required sections
-    for `qa-feedback`, non-empty/well-formed for `generate-questions` and
-    `followup-question`). A failure is logged + sent to Sentry and the route
+    for `qa-feedback`; for `generate-questions` and `followup-question`, every
+    question must be a complete question ending in "?" and ≤400 chars —
+    `cleanQuestion` in `lib/anthropic.ts` deliberately never truncates, so a
+    cut-off reply fails here instead of shipping mid-sentence). A failure is logged + sent to Sentry and the route
     returns a graceful 502 (`code: feedback_incomplete` / `script_malformed` /
     `questions_malformed` / `followup_malformed`) rather than partial content.
 - Product analytics (PostHog):

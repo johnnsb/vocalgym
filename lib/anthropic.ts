@@ -132,23 +132,28 @@ export async function generatePracticeFeedback(
   return textOf(response);
 }
 
-const MAX_QUESTION_CHARS = 300;
-
-/** Trim wrapping quotes/whitespace from a single-line model reply (a question). */
+/** Trim wrapping quotes/whitespace from a single-line model reply (a question).
+ *  Deliberately never truncates: a clipped question reads as a finished one to
+ *  the user. Length and the trailing "?" are enforced in lib/verifyOutput.ts
+ *  instead, so an over-long or cut-off reply fails loudly (502) rather than
+ *  shipping mid-sentence. */
 function cleanQuestion(raw: string): string {
   return raw
     .split("\n")[0]
     .replace(/^["'\s]+|["'\s]+$/g, "")
-    .slice(0, MAX_QUESTION_CHARS)
     .trim();
 }
 
+const NUMBERED_LINE = /^[ \t]*\d+[.)][ \t]*/;
+
 /** Parse a "1. ...\n2. ..." numbered list (see QUESTION_SYSTEM_PROMPT) into
- *  individual question strings. */
+ *  individual question strings. Only numbered lines count, so a stray preamble
+ *  or closing remark can't become a "question". */
 function parseQuestions(text: string): string[] {
   return text
     .split("\n")
-    .map((line) => cleanQuestion(line.replace(/^[ \t]*\d+[.)][ \t]*/, "")))
+    .filter((line) => NUMBERED_LINE.test(line))
+    .map((line) => cleanQuestion(line.replace(NUMBERED_LINE, "")))
     .filter(Boolean);
 }
 
