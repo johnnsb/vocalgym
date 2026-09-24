@@ -33,8 +33,12 @@ signals — rolled up into a single "Effective" score.
   NEXT_PUBLIC_SENTRY_DSN (blank = fully disabled, zero client-bundle cost;
   `next.config.mjs` only wires in `withSentryConfig` when the DSN is set). A DSN
   is currently configured in .env.local, so it's active — including in
-  `npm run dev` (events tagged `environment: development`). No source-map upload
-  configured.
+  `npm run dev` (events tagged `environment: development`). Source-map upload is
+  wired into `next.config.mjs` (`org` / `project` / `authToken` read from
+  SENTRY_ORG / SENTRY_PROJECT / SENTRY_AUTH_TOKEN) but stays disabled until
+  SENTRY_AUTH_TOKEN is set — those three are not in .env.local yet, so
+  `next build` still ships minified stack traces. See .env.example for what each
+  value is.
 - PostHog (posthog-js v1) for product analytics + in-app feedback surveys —
   gated on NEXT_PUBLIC_POSTHOG_KEY (blank = fully disabled, SDK never imported,
   zero client-bundle cost — `posthog-js` is a lazy `import()` in
@@ -382,8 +386,10 @@ signals — rolled up into a single "Effective" score.
   but no CI/host wired to run it).
 - Export the 8 brand logo PNGs from the DS project into `public/brand/` and
   switch `SiteHeader` (+ footer / hero) from the text wordmark to `<BrandMark>`.
-- Sentry source-map upload (set SENTRY_ORG / SENTRY_PROJECT / SENTRY_AUTH_TOKEN
-  and drop `sourcemaps.disable` in `next.config.mjs` for readable stack traces)
+- Sentry source-map upload — the `next.config.mjs` wiring is in place; just
+  needs SENTRY_ORG / SENTRY_PROJECT / SENTRY_AUTH_TOKEN provided (in `.env.local`
+  for a local prod build, or as host/CI secrets) to start uploading on
+  `next build`.
 - `/grill` v0 is a prototype, not a finished feature: no link from `/` or
   `SiteHeader` yet (direct URL only), no persistence (no `Attempt` history, no
   resume on refresh), not instrumented with PostHog events, and the recorder's

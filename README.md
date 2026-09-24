@@ -255,9 +255,13 @@ wrapper over `GET/PATCH /api/state` and `POST/DELETE /api/attempts`.
   `app/global-error.tsx` catches React render crashes, the API routes call
   `Sentry.captureException` / `captureMessage` in their catch and verification
   paths, and the frontend reports unexpected fetch errors via
-  `lib/clientErrors.ts` (lazy-loads the SDK only when a DSN is configured). No
-  source-map upload is configured — add `SENTRY_ORG` / `SENTRY_PROJECT` /
-  `SENTRY_AUTH_TOKEN` and drop `sourcemaps.disable` for readable stack traces.
+  `lib/clientErrors.ts` (lazy-loads the SDK only when a DSN is configured).
+  Source-map upload is wired into `next.config.mjs` but inactive until you set
+  `SENTRY_ORG` / `SENTRY_PROJECT` / `SENTRY_AUTH_TOKEN` (see `.env.example` for
+  what each value is and where to find it). With them set, `next build` uploads
+  source maps so stack traces resolve to the original TypeScript; without them
+  the build still succeeds and capture still works, traces just stay minified.
+  Only `next build` is affected — `npm run dev` never uploads.
 - **Structured logs** — all five Claude routes (`generate-script`,
   `practice-feedback`, and the three `/grill` routes — `generate-questions`,
   `followup-question`, `qa-feedback`) log `request received` → `anthropic call
