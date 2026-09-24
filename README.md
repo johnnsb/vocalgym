@@ -92,6 +92,9 @@ app/
   api/generate-script/route.ts     POST -> { script, label } from one Claude call
   api/script-label/route.ts        POST -> { label } (Haiku) for brought-your-own scripts
   api/practice-feedback/route.ts   POST endpoint: transcript + script -> coaching
+  api/generate-questions/route.ts  "grill" v0: POST source text -> { questions } (numbered list)
+  api/followup-question/route.ts   "grill" v0: POST question+transcript+source -> { followUp }
+  api/qa-feedback/route.ts         "grill" v0: POST source+exchanges -> { feedback } (no rubric)
   api/state/route.ts               GET session state (script+rubric+attempts); PATCH to update
   api/attempts/route.ts            POST save an attempt; DELETE clear all
   api/attempts/[id]/route.ts       DELETE one attempt (session-scoped)
@@ -111,6 +114,7 @@ app/
   faq/page.tsx                     Stub FAQ (a few real short answers)
   signin/page.tsx                  Thin "coming soon" stub
   practice/page.tsx                Practice route
+  grill/page.tsx                   "Defend your work" v0 — GrillSession (no nav link yet, direct URL only)
   globals.css                      Imports styles/tokens.css, then Tailwind
   styles/tokens.css                Design-system tokens (CSS custom properties)
 components/
@@ -131,10 +135,12 @@ components/
   EffectiveScore.tsx               The Effective score + per-attribute breakdown bars
   PastAttempts.tsx                 Sidebar history, grouped by script (label header), rows collapsible
   FeedbackWidget.tsx               Dismissible smiley-rating PostHog survey (generate / practice / landing)
+  GrillSession.tsx                 "grill" v0 orchestrator: upload -> questions -> record -> follow-up -> record -> feedback
+  QAFeedbackSections.tsx           Parses grill feedback markdown (own section set, not FeedbackSections)
 lib/
-  anthropic.ts                     Anthropic client + generateScript() / generatePracticeFeedback() / generateScriptLabel()
+  anthropic.ts                     Anthropic client + generateScript() / generatePracticeFeedback() / generateScriptLabel() / generateQuestions() / generateFollowUpQuestion() / generateQAFeedback()
   prompt.ts                        System prompts + prompt builders
-  types.ts                         Shared types (tones, metrics, rubric, signals, score)
+  types.ts                         Shared types (tones, metrics, rubric, signals, score, grill Q&A types)
   practiceStore.ts                 Client fetch wrapper over /api/state + /api/attempts
   session.ts                       getSessionId() / ensureSession() — reads the vg_sid cookie
   gate.ts                          Site-password-gate logic — vg_gate cookie digest, next-path sanitizing
@@ -152,7 +158,7 @@ lib/
   expertRequests.ts                ExpertRequest table access for "get expert help"
   prisma.ts                        Shared PrismaClient singleton (HMR-safe); pooled at runtime
 evals/                             Quality evals (npm run eval) — see "Quality evals" below
-  dataset.ts                       13 test situations spanning all 6 tone presets
+  dataset.ts                       14 test situations spanning all 7 tone presets
   client.ts                        Shared Anthropic client for eval-only calls (synthetic + judge)
   generateSyntheticAttempt.ts      Synthesizes strong/average/weak rehearsal transcripts
   judge.ts                         LLM judge — scores feedback on specificity/weakest-area/tone
@@ -252,18 +258,25 @@ wrapper over `GET/PATCH /api/state` and `POST/DELETE /api/attempts`.
   `lib/clientErrors.ts` (lazy-loads the SDK only when a DSN is configured). No
   source-map upload is configured — add `SENTRY_ORG` / `SENTRY_PROJECT` /
   `SENTRY_AUTH_TOKEN` and drop `sourcemaps.disable` for readable stack traces.
-- **Structured logs** — the two Claude routes (`generate-script`,
-  `practice-feedback`) log `request received` → `anthropic call started` →
-  `succeeded` / `failed` → `response sent`; `expert-request` and `script-label`
-  log their own lifecycle; `state` / `attempts` log failures only. Every line is prefixed
-  `[<route> <request-id>]` (see `lib/logger.ts`), plain `console` — visible in
-  `npm run dev` output or your host's function logs.
+- **Structured logs** — all five Claude routes (`generate-script`,
+  `practice-feedback`, and the three `/grill` routes — `generate-questions`,
+  `followup-question`, `qa-feedback`) log `request received` → `anthropic call
+  started` → `succeeded` / `failed` → `response sent`; `expert-request` and
+  `script-label` log their own lifecycle; `state` / `attempts` log failures
+  only. Every line is prefixed `[<route> <request-id>]` (see `lib/logger.ts`),
+  plain `console` — visible in `npm run dev` output or your host's function
+  logs.
 - **Output verification** — before returning, `lib/verifyOutput.ts` checks the
   practice-feedback response contains all 5 sections (Overall / What landed /
   Gaps vs. the script / Delivery / For your next take) and that a generated
-  script is non-empty and structured. A failure is logged + sent to Sentry and
-  the route returns a graceful `502` (`code: feedback_incomplete` /
-  `script_malformed`) instead of rendering partial content.
+  script is non-empty and structured, plus the `/grill` equivalents (4
+  sections for `qa-feedback`; for `generate-questions` and
+  `followup-question`, each question must be complete — ending in `?`, at most
+  400 chars; nothing upstream truncates, so a cut-off reply fails rather than
+  shipping mid-sentence). A failure is logged + sent to Sentry and the route
+  returns a graceful `502` (`code: feedback_incomplete` / `script_malformed` /
+  `questions_malformed` / `followup_malformed`) instead of rendering partial
+  content.
 
 ## Product analytics & feedback (PostHog)
 
@@ -298,13 +311,14 @@ wrapper over `GET/PATCH /api/state` and `POST/DELETE /api/attempts`.
 ## Demo usage cap
 
 A lightweight guard against a shared demo link running up an Anthropic bill. It's
-a single combined counter across `/api/generate-script` and
-`/api/practice-feedback` — **not** per-user rate limiting, and under concurrency
-it can overshoot by a few.
+a single combined counter across `/api/generate-script`,
+`/api/practice-feedback`, and the three `/grill` routes
+(`/api/generate-questions`, `/api/followup-question`, `/api/qa-feedback`) —
+**not** per-user rate limiting, and under concurrency it can overshoot by a few.
 
 - **Set the limit** — `DEMO_REQUEST_LIMIT` in `.env.local` (e.g. `100`). Blank or
-  `0` disables the cap entirely. Once the count reaches the limit, both routes
-  return `429 { error: "Demo limit reached — please check back later.", code:
+  `0` disables the cap entirely. Once the count reaches the limit, every route
+  above returns `429 { error: "Demo limit reached — please check back later.", code:
   "demo_limit_reached" }` without calling Anthropic, and the UI shows a friendly
   "check back later" notice instead of a red error.
 - **Check the count** — `GET /api/usage-count` →
@@ -365,6 +379,54 @@ for JSON). Both are gated by `USAGE_ADMIN_TOKEN` when it's set — `?token=…` 
 fulfil these manually by replying to the email with a script the user can then
 paste into `/script`.
 
+## Grill mode — "defend your work" (v0 prototype)
+
+**`/grill`** is a small, deliberately isolated prototype of *live AI
+pushback*: upload or paste the material you're presenting, get likely
+reviewer questions, answer one out loud, get one Claude-generated follow-up
+that's actually responsive to what you said (not a fixed list), answer that
+too, then get qualitative feedback across both exchanges. It's not linked from
+the landing page or nav yet — reach it at `/grill` directly.
+
+1. `POST /api/generate-questions` — `{ source }` → `{ questions }`, a
+   numbered list of 3–6 likely reviewer questions (only numbered lines are
+   kept). The prompt asks for single, direct, one-sentence questions (~25
+   words, no compound "…and what if…" second half), since each is answered out
+   loud on the spot.
+2. Pick a question, answer it with `PracticeRecorder` (reused as-is, plus one
+   new optional `contentLabel` prop so the side panel reads "Question" instead
+   of "Script"). Same manual-transcript fallback as `/practice` for browsers
+   without the Web Speech API.
+3. `POST /api/followup-question` — `{ source, originalQuestion, transcript,
+   otherQuestions }` → `{ followUp }`, one question from Claude that presses
+   on something concrete and real in the answer (an unsupported claim, a gap
+   vs. the source, a vague number) rather than a generic "can you elaborate."
+   The source and the spoken answer go to the model in separate XML tags
+   (`<source_material>` / `<candidate_answer>`) with an explicit attribution
+   rule: only what's in the source may be described as "in the proposal";
+   anything only in the answer is "you said". This is the core of the feature —
+   an earlier `--- SOURCE MATERIAL ---`-header version once presented a detail
+   the user had only said aloud as part of the plan.
+4. Answer the follow-up the same way, then `POST /api/qa-feedback` — `{
+   source, exchanges }` → `{ feedback }`, qualitative Markdown across both
+   exchanges (**Overall** / **Accuracy vs. source** / **Composure** / **For
+   next time**), rendered by `QAFeedbackSections.tsx` — a standalone renderer,
+   not a reuse of `FeedbackSections.tsx` (practice-feedback's), because the
+   section set is different. Same separation as step 3: the source goes in
+   `<source_material>` and each spoken answer in its own `<exchange>`/`<answer>`
+   tags, with the same attribution rule, so **Accuracy vs. source** reports a
+   detail that appears only in an answer as an addition rather than a match.
+
+**Deliberately v0-scoped**: no persistence (nothing is saved as an `Attempt`;
+"Start over" just resets in-memory state, and a refresh loses progress), no
+rubric/Effective-score involvement (the recorder's camera toggle still works
+but its signal isn't used here), not wired to PostHog. All three routes share
+the demo usage cap and the same verify-before-return / structured-logging
+conventions as `generate-script` and `practice-feedback` (see "Demo usage cap"
+and "Observability" above). See CLAUDE.md "Open questions" for the
+content-scored-quality (accuracy/precision as a rubric quality, not just
+prose) work this is meant to lead into.
+
 ## Quality evals
 
 Separate from unit tests — this measures **output quality** (does the script/
@@ -374,14 +436,14 @@ it by hand whenever a prompt (`lib/prompt.ts`) or `MODEL` (`lib/anthropic.ts`)
 changes.
 
 ```bash
-npm run eval                                  # full dataset (13 cases)
+npm run eval                                  # full dataset (14 cases)
 EVAL_CASE_IDS=raise-ask npm run eval          # one case, for a quick/cheap check
 EVAL_CONCURRENCY=4 npm run eval               # default is 3 in-flight cases
 EVAL_JUDGE_MODEL=claude-sonnet-5 npm run eval # cheaper judge, default claude-opus-5
 ```
 
-What it does, per `evals/dataset.ts` case (13 realistic situations spanning
-all 6 tone presets):
+What it does, per `evals/dataset.ts` case (14 realistic situations spanning
+all 7 tone presets):
 
 1. Calls the **real** `generateScript()` — the actual production code path,
    not a mock.
@@ -464,6 +526,7 @@ A console summary prints alongside the file.
   | supportive   | Warm 35 · Connected 25 · Present 20 · Smooth 20 |
   | persuasive   | Confident 30 · Clear 30 · Connected 20 · Smooth 20 |
   | celebratory  | Warm 40 · Connected 30 · Present 15 · Smooth 15 |
+  | defending    | Composed 35 · Clear 25 · Confident 20 · Steady 20 |
 
   Changing the tone dropdown retunes the picker live (via a same-tab
   `vocalgym:tone-change` event). Editing any chip or weight flips it to a
@@ -490,3 +553,9 @@ A console summary prints alongside the file.
   Effective score in **Overall** and points **For your next take** at the
   highest-weighted quality that scored lowest.
 - Everything is a rough single-take estimate and is labelled as such.
+- `defending` ("Defending your work" — presenting/proposing under expert Q&A or
+  cross-examination) reuses existing physical/vocal qualities only, including
+  `steady` (posture + stillness — renamed from `grounded`, which is reserved for
+  a future content-accuracy quality). Scoring transcript content itself (did
+  they invent a number, did they hedge honestly) isn't built — see CLAUDE.md
+  "Open questions".

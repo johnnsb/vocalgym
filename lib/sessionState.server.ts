@@ -1,7 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "./prisma";
 import { ensureSession } from "./session";
-import { TONES, type PracticeAttempt, type RubricSelection, type StoredScript, type Tone } from "./types";
+import { RUBRIC_ATTRIBUTES, TONES, type PracticeAttempt, type RubricSelection, type StoredScript, type Tone } from "./types";
 
 // Server-side data access for everything that used to live in localStorage:
 // the session's single "current script", its rubric selection, and its
@@ -78,7 +78,12 @@ export function normalizeRubricSelection(v: unknown): RubricSelection | null {
   const p = v as Partial<RubricSelection>;
   if (!Array.isArray(p.attributes)) return null;
   return {
-    attributes: p.attributes.slice(0, 4) as RubricSelection["attributes"],
+    // Drop unknown names (e.g. "grounded", renamed to "steady") so a stale
+    // saved rubric can't index ATTRIBUTE_RUBRIC with a missing key and throw.
+    attributes: p.attributes
+      .filter((a): a is RubricSelection["attributes"][number] =>
+        (RUBRIC_ATTRIBUTES as readonly unknown[]).includes(a))
+      .slice(0, 4),
     weights:
       p.weights && typeof p.weights === "object"
         ? (p.weights as Record<string, number>)

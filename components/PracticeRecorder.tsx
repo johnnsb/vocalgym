@@ -55,6 +55,9 @@ interface Props {
   disabled?: boolean;
   /** Shown next to the camera preview so it stays visible while recording. */
   script?: string;
+  /** Label above the `script` panel — "Script" by default; pass e.g. "Question"
+   *  when reusing this recorder outside the script-rehearsal flow. */
+  contentLabel?: string;
   /** Fires each time a recording stops, with whatever was captured. */
   onComplete: (result: {
     transcript: string;
@@ -110,6 +113,7 @@ function Waveform({ active }: { active: boolean }) {
 export default function PracticeRecorder({
   disabled,
   script,
+  contentLabel = "Script",
   onComplete,
 }: Props) {
   const [status, setStatus] = useState<Status>("idle");
@@ -451,7 +455,7 @@ export default function PracticeRecorder({
         {script?.trim() && (
           <div className="max-h-56 min-w-0 flex-1 overflow-y-auto rounded-md border border-border-subtle bg-surface-sunken p-3 sm:max-h-[200px]">
             <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-text-muted">
-              Script
+              {contentLabel}
             </p>
             <div className="whitespace-pre-wrap text-caption leading-relaxed text-text-body">
               {script}

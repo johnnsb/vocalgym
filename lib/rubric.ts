@@ -65,8 +65,8 @@ export const ATTRIBUTE_RUBRIC: Record<
     blurb: "Settled and sure of the ask.",
     signals: { posture: 0.3, volume: 0.25, fluency: 0.25, eyeContact: 0.2 },
   },
-  grounded: {
-    label: "Grounded",
+  steady: {
+    label: "Steady",
     blurb: "Physically still and settled.",
     signals: { posture: 0.5, stillness: 0.5 },
   },
@@ -119,6 +119,14 @@ export const TONE_RUBRIC_PRESETS: Record<Tone | "generic", Preset> = {
     // upbeat and sincere, and let it flow
     attributes: ["warm", "connected", "present", "smooth"],
     weights: { warm: 40, connected: 30, present: 15, smooth: 15 },
+  },
+  defending: {
+    // expert Q&A / cross-examination on a specific claim — stay composed and
+    // exact rather than overclaiming. "steady" (physical stillness) stands in
+    // for not visibly rattling under pushback until content-accuracy scoring
+    // exists — see CLAUDE.md "Open questions".
+    attributes: ["composed", "clear", "confident", "steady"],
+    weights: { composed: 35, clear: 25, confident: 20, steady: 20 },
   },
 };
 

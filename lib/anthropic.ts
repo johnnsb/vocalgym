@@ -6,9 +6,15 @@ import {
   buildFeedbackPrompt,
   LABEL_SYSTEM_PROMPT,
   buildLabelPrompt,
+  QUESTION_SYSTEM_PROMPT,
+  buildQuestionsPrompt,
+  FOLLOWUP_SYSTEM_PROMPT,
+  buildFollowUpPrompt,
+  QA_FEEDBACK_SYSTEM_PROMPT,
+  buildQAFeedbackPrompt,
   type FeedbackPromptExtras,
 } from "./prompt";
-import type { Tone } from "./types";
+import type { QAExchange, Tone } from "./types";
 
 /**
  * Model used for script generation. Swap this one line to change models
@@ -123,6 +129,85 @@ export async function generatePracticeFeedback(
     ],
   });
 
+  return textOf(response);
+}
+
+/** Trim wrapping quotes/whitespace from a single-line model reply (a question).
+ *  Deliberately never truncates: a clipped question reads as a finished one to
+ *  the user. Length and the trailing "?" are enforced in lib/verifyOutput.ts
+ *  instead, so an over-long or cut-off reply fails loudly (502) rather than
+ *  shipping mid-sentence. */
+function cleanQuestion(raw: string): string {
+  return raw
+    .split("\n")[0]
+    .replace(/^["'\s]+|["'\s]+$/g, "")
+    .trim();
+}
+
+const NUMBERED_LINE = /^[ \t]*\d+[.)][ \t]*/;
+
+/** Parse a "1. ...\n2. ..." numbered list (see QUESTION_SYSTEM_PROMPT) into
+ *  individual question strings. Only numbered lines count, so a stray preamble
+ *  or closing remark can't become a "question". */
+function parseQuestions(text: string): string[] {
+  return text
+    .split("\n")
+    .filter((line) => NUMBERED_LINE.test(line))
+    .map((line) => cleanQuestion(line.replace(NUMBERED_LINE, "")))
+    .filter(Boolean);
+}
+
+/** "Grill" mode: generate likely reviewer questions from uploaded material. */
+export async function generateQuestions(source: string): Promise<string[]> {
+  const response = await getClient().messages.create({
+    model: MODEL,
+    max_tokens: 1024,
+    system: QUESTION_SYSTEM_PROMPT,
+    messages: [{ role: "user", content: buildQuestionsPrompt(source) }],
+  });
+  return parseQuestions(textOf(response));
+}
+
+/** "Grill" mode: one follow-up question grounded in what they actually said. */
+export async function generateFollowUpQuestion(
+  source: string,
+  originalQuestion: string,
+  transcript: string,
+  otherQuestions?: string[],
+): Promise<string> {
+  const response = await getClient().messages.create({
+    model: MODEL,
+    max_tokens: 200,
+    system: FOLLOWUP_SYSTEM_PROMPT,
+    messages: [
+      {
+        role: "user",
+        content: buildFollowUpPrompt(
+          source,
+          originalQuestion,
+          transcript,
+          otherQuestions,
+        ),
+      },
+    ],
+  });
+  return cleanQuestion(textOf(response));
+}
+
+/** "Grill" mode: qualitative feedback across both Q&A exchanges. No numeric
+ *  rubric/Effective score involved — see lib/types.ts QAFeedbackResponse. */
+export async function generateQAFeedback(
+  source: string,
+  exchanges: QAExchange[],
+): Promise<string> {
+  const response = await getClient().messages.create({
+    model: MODEL,
+    max_tokens: 2048,
+    system: QA_FEEDBACK_SYSTEM_PROMPT,
+    messages: [
+      { role: "user", content: buildQAFeedbackPrompt(source, exchanges) },
+    ],
+  });
   return textOf(response);
 }
 
