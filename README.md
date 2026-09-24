@@ -412,7 +412,10 @@ the landing page or nav yet — reach it at `/grill` directly.
    exchanges (**Overall** / **Accuracy vs. source** / **Composure** / **For
    next time**), rendered by `QAFeedbackSections.tsx` — a standalone renderer,
    not a reuse of `FeedbackSections.tsx` (practice-feedback's), because the
-   section set is different.
+   section set is different. Same separation as step 3: the source goes in
+   `<source_material>` and each spoken answer in its own `<exchange>`/`<answer>`
+   tags, with the same attribution rule, so **Accuracy vs. source** reports a
+   detail that appears only in an answer as an addition rather than a match.
 
 **Deliberately v0-scoped**: no persistence (nothing is saved as an `Attempt`;
 "Start over" just resets in-memory state, and a refresh loses progress), no

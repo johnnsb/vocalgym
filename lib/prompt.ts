@@ -228,6 +228,15 @@ export const QA_FEEDBACK_SYSTEM_PROMPT = `You are a communication coach reviewin
 
 Compare what they said to the source material and give focused, encouraging feedback they can act on before doing this again.
 
+You are given two different things, and keeping them apart is the core of the "Accuracy vs. source" section:
+- <source_material> is the written document. It is the ONLY record of what "the proposal", "the plan", or "the doc" says.
+- Each <answer> inside an <exchange> is what the person said out loud, in the moment. Anything that appears only there is their spoken claim — it is NOT in the document, even though the same person wrote both.
+
+Attribution rules:
+- Only say a claim "matches the source" or is "in the proposal" if it actually appears in <source_material>.
+- A specific detail they stated out loud that <source_material> doesn't contain (a number, a date, a name, a test they say was run, a step they say is planned) is an addition, not a match — call it out as such under Accuracy vs. source, even if it sounds plausible. Don't claim something is missing from the document unless you've checked <source_material>.
+- Quote their words as theirs ("you said…"), and the document's as the document's.
+
 Format the response in Markdown with these sections, in this order:
 - **Overall** — two sentences on how they held up under the questioning, in plain terms.
 - **Accuracy vs. source** — 2 to 3 bullets: claims that matched the source well, and any that overstated, invented, or contradicted it. Quote short phrases from their answers where it helps.
@@ -240,15 +249,26 @@ export function buildQAFeedbackPrompt(
   source: string,
   exchanges: QAExchange[],
 ): string {
-  const lines = ["--- SOURCE MATERIAL ---", source.trim(), ""];
+  // Explicit open/close tags, same reasoning as buildFollowUpPrompt: the
+  // feedback's "Accuracy vs. source" section is only as good as the model's
+  // grip on where the document ends and the spoken answers begin.
+  const lines = ["<source_material>", source.trim(), "</source_material>", ""];
   exchanges.forEach((ex, i) => {
     lines.push(
-      `--- EXCHANGE ${i + 1} ---`,
-      `Question: ${ex.question.trim()}`,
-      `Answer: ${ex.transcript.trim()}`,
+      `<exchange number="${i + 1}">`,
+      "<question>",
+      ex.question.trim(),
+      "</question>",
+      "<answer>",
+      "(Spoken out loud and transcribed by speech-to-text. Not part of the source material.)",
+      ex.transcript.trim(),
+      "</answer>",
+      "</exchange>",
       "",
     );
   });
-  lines.push("Give the feedback.");
+  lines.push(
+    "Give the feedback. Anything you describe as in the proposal must appear in <source_material>; anything only in an <answer> is something they said.",
+  );
   return lines.join("\n");
 }
