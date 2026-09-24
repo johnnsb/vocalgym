@@ -229,8 +229,9 @@ export default function GrillSession() {
             </div>
           </Field>
 
-          {notice && !error && <Callout tone="info">{notice}</Callout>}
-          {error && <Callout tone="critical">{error}</Callout>}
+          {notice && !error && !demoLimited && <Callout tone="info">{notice}</Callout>}
+          {demoLimited && <Callout tone="caution">{DEMO_LIMIT_MESSAGE}</Callout>}
+          {error && !demoLimited && <Callout tone="critical">{error}</Callout>}
 
           <Button
             onClick={generateQuestions}
