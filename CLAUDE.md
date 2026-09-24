@@ -35,10 +35,13 @@ signals — rolled up into a single "Effective" score.
   is currently configured in .env.local, so it's active — including in
   `npm run dev` (events tagged `environment: development`). Source-map upload is
   wired into `next.config.mjs` (`org` / `project` / `authToken` read from
-  SENTRY_ORG / SENTRY_PROJECT / SENTRY_AUTH_TOKEN) but stays disabled until
-  SENTRY_AUTH_TOKEN is set — those three are not in .env.local yet, so
-  `next build` still ships minified stack traces. See .env.example for what each
-  value is.
+  SENTRY_ORG / SENTRY_PROJECT / SENTRY_AUTH_TOKEN) and stays disabled unless
+  all three are set; to enable it, add all three (in `.env.local` for a local
+  prod build, or as host/CI secrets) and `next build` uploads source maps.
+  Without them it still builds, with minified stack traces. See .env.example
+  for what each value is. **Unverified:** whether this plugin version deletes
+  the generated `.map` files after uploading, or leaves them publicly served
+  next to the JS — check the build output the first time a real token is set.
 - PostHog (posthog-js v1) for product analytics + in-app feedback surveys —
   gated on NEXT_PUBLIC_POSTHOG_KEY (blank = fully disabled, SDK never imported,
   zero client-bundle cost — `posthog-js` is a lazy `import()` in
