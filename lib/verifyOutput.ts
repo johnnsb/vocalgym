@@ -52,3 +52,67 @@ export function verifyScript(text: unknown): ScriptCheck {
   if (!looksStructured) return { ok: false, reason: "unstructured" };
   return { ok: true };
 }
+
+// --- "Grill" mode (app/grill) ----------------------------------------------
+
+export interface QuestionsCheck {
+  ok: boolean;
+  reason?: string;
+}
+
+/** Generated questions should be a handful of non-trivial, actual questions. */
+export function verifyQuestions(questions: unknown): QuestionsCheck {
+  if (!Array.isArray(questions) || questions.length === 0) {
+    return { ok: false, reason: "empty" };
+  }
+  if (questions.length > 10) return { ok: false, reason: "too-many" };
+  const bad = questions.some(
+    (q) => typeof q !== "string" || q.trim().length < 8,
+  );
+  if (bad) return { ok: false, reason: "malformed-item" };
+  return { ok: true };
+}
+
+export interface FollowUpCheck {
+  ok: boolean;
+  reason?: string;
+}
+
+/** A follow-up should be a single non-trivial question, not empty or a wall
+ *  of text (which would suggest the model ignored the "ONLY the question"
+ *  instruction). */
+export function verifyFollowUp(text: unknown): FollowUpCheck {
+  if (typeof text !== "string" || text.trim().length < 8) {
+    return { ok: false, reason: "empty-or-too-short" };
+  }
+  if (text.trim().length > 400) return { ok: false, reason: "too-long" };
+  return { ok: true };
+}
+
+const REQUIRED_QA_FEEDBACK_SECTIONS: { label: string; re: RegExp }[] = [
+  ["Overall", String.raw`overall\b`],
+  ["Accuracy vs. source", String.raw`accuracy\b`],
+  ["Composure", String.raw`composure\b`],
+  ["For next time", String.raw`for next time\b`],
+].map(([label, body]) => ({ label, re: new RegExp(HEAD + body, "i") }));
+
+export interface QAFeedbackCheck {
+  ok: boolean;
+  missing: string[];
+  reason?: string;
+}
+
+/** The 4 required "grill" feedback sections must all be present. */
+export function verifyQAFeedback(text: unknown): QAFeedbackCheck {
+  if (typeof text !== "string" || text.trim().length < 60) {
+    return {
+      ok: false,
+      missing: REQUIRED_QA_FEEDBACK_SECTIONS.map((s) => s.label),
+      reason: "empty-or-too-short",
+    };
+  }
+  const missing = REQUIRED_QA_FEEDBACK_SECTIONS.filter(
+    (s) => !s.re.test(text),
+  ).map((s) => s.label);
+  return { ok: missing.length === 0, missing };
+}

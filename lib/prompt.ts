@@ -2,6 +2,7 @@ import type {
   EffectiveResult,
   NonverbalMetrics,
   ObservableSignals,
+  QAExchange,
   Tone,
 } from "./types";
 import { formatNonverbalForPrompt } from "./nonverbal";
@@ -45,6 +46,8 @@ const TONE_GUIDANCE: Record<Tone, string> = {
     "Be persuasive: make a clear ask, lead with the other side's interests, and give concrete reasons.",
   celebratory:
     "Keep it upbeat and celebratory while staying sincere and specific.",
+  defending:
+    "Treat this as defending your work under expert questioning: stay composed and precise when pushed on a specific claim, and favor admitting uncertainty over guessing or overstating.",
 };
 
 export const LABEL_SYSTEM_PROMPT =
@@ -130,5 +133,94 @@ export function buildFeedbackPrompt(
     );
   }
   lines.push("", "Give the feedback.");
+  return lines.join("\n");
+}
+
+/**
+ * "Grill" mode (app/grill) — defend uploaded material under follow-up
+ * questioning. Not covered by PROMPT_VERSION/evals above; these prompts aren't
+ * exercised by evals/run.ts.
+ */
+
+export const QUESTION_SYSTEM_PROMPT = `You are helping someone rehearse defending a proposal, presentation, or piece of written work before an audience that will question it — reviewers, stakeholders, an expert panel.
+
+Given the material below, generate the questions a sharp, knowledgeable reviewer is likely to ask about it — ones that probe assumptions, missing evidence, edge cases, and claims stated more confidently than the material supports.
+
+Reply with ONLY a numbered list, one question per line, in exactly this form:
+1. <question>
+2. <question>
+...
+Generate between 3 and 6 questions. No preamble, no commentary, no headers — just the numbered list.`;
+
+export function buildQuestionsPrompt(source: string): string {
+  return [
+    "--- SOURCE MATERIAL ---",
+    source.trim(),
+    "",
+    "Generate the questions.",
+  ].join("\n");
+}
+
+export const FOLLOWUP_SYSTEM_PROMPT = `You are an expert reviewer following up on someone's spoken answer to a question about material they wrote or proposed.
+
+Read the original question, the source material, and what they actually said, then ask ONE natural follow-up that presses on something specific and real in their answer — an unsupported claim, a detail they glossed over that the source material would let you check, a number stated vaguely or that doesn't match the source, or something the source contradicts.
+
+Do not ask a generic follow-up like "can you elaborate" or "tell me more" — name the specific thing you're pushing on. Do not repeat ground another question already covers.
+
+Reply with ONLY the follow-up question — no quotes, no preamble, no explanation.`;
+
+export function buildFollowUpPrompt(
+  source: string,
+  originalQuestion: string,
+  transcript: string,
+  otherQuestions?: string[],
+): string {
+  const lines = [
+    "--- SOURCE MATERIAL ---",
+    source.trim(),
+    "",
+    "--- ORIGINAL QUESTION ---",
+    originalQuestion.trim(),
+    "",
+    "--- THEIR ANSWER (spoken, transcribed — expect some transcription noise) ---",
+    transcript.trim(),
+  ];
+  if (otherQuestions?.length) {
+    lines.push(
+      "",
+      "--- OTHER QUESTIONS ALREADY BEING ASKED (don't duplicate these) ---",
+      otherQuestions.map((q) => `- ${q}`).join("\n"),
+    );
+  }
+  lines.push("", "Ask the follow-up.");
+  return lines.join("\n");
+}
+
+export const QA_FEEDBACK_SYSTEM_PROMPT = `You are a communication coach reviewing a rehearsal for defending written material (a proposal, a presentation, a pitch) under expert questioning. The user was asked a question about material they wrote or proposed, answered out loud, got one pointed follow-up based on their actual answer, and answered that too. Both answers were captured by speech-to-text — expect some transcription noise and do not comment on it.
+
+Compare what they said to the source material and give focused, encouraging feedback they can act on before doing this again.
+
+Format the response in Markdown with these sections, in this order:
+- **Overall** — two sentences on how they held up under the questioning, in plain terms.
+- **Accuracy vs. source** — 2 to 3 bullets: claims that matched the source well, and any that overstated, invented, or contradicted it. Quote short phrases from their answers where it helps.
+- **Composure** — 2 to 3 bullets on how they handled being pushed on the follow-up — did they concede uncertainty honestly, hedge, or double down on a shaky claim.
+- **For next time** — 2 to 3 concrete, prioritized changes.
+
+Be direct but supportive. No preamble before the feedback.`;
+
+export function buildQAFeedbackPrompt(
+  source: string,
+  exchanges: QAExchange[],
+): string {
+  const lines = ["--- SOURCE MATERIAL ---", source.trim(), ""];
+  exchanges.forEach((ex, i) => {
+    lines.push(
+      `--- EXCHANGE ${i + 1} ---`,
+      `Question: ${ex.question.trim()}`,
+      `Answer: ${ex.transcript.trim()}`,
+      "",
+    );
+  });
+  lines.push("Give the feedback.");
   return lines.join("\n");
 }

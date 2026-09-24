@@ -72,6 +72,31 @@ signals — rolled up into a single "Effective" score.
   submit to POST /api/practice-feedback for Claude-generated coaching notes.
   Camera frames never leave the browser — only the derived metric summary and
   the Effective score are sent. The rubric strip's "change" does `router.back()`.
+- `/grill` (`GrillSession`) — "defend your work" v0 prototype: upload/paste
+  material → POST /api/generate-questions → a numbered list of likely reviewer
+  questions → pick one → record an answer (`PracticeRecorder`, reused as-is
+  plus one new optional `contentLabel` prop so its side panel says "Question"
+  instead of "Script") → POST /api/followup-question (original question +
+  transcript + source material + the other questions, so it doesn't duplicate
+  their ground) → one Claude-generated follow-up that presses on something
+  concrete in the answer → record that too → POST /api/qa-feedback → qualitative
+  markdown feedback (`QAFeedbackSections.tsx`, a standalone renderer — not a
+  reuse of `FeedbackSections.tsx`, which is practice-feedback's and has a
+  different fixed section set) across both exchanges. Deliberately isolated
+  from the script/practice flow: no shared state, own types
+  (`GenerateQuestionsRequest/Response`, `QAExchange`,
+  `FollowUpQuestionRequest/Response`, `QAFeedbackRequest/Response` in
+  `lib/types.ts`), own prompt pairs in `lib/prompt.ts`
+  (`QUESTION_SYSTEM_PROMPT`/`FOLLOWUP_SYSTEM_PROMPT`/`QA_FEEDBACK_SYSTEM_PROMPT`
+  + builders), own calls in `lib/anthropic.ts` (`generateQuestions`,
+  `generateFollowUpQuestion`, `generateQAFeedback`), own checks in
+  `lib/verifyOutput.ts` (`verifyQuestions`/`verifyFollowUp`/`verifyQAFeedback`).
+  **v0 scope, deliberately**: no persistence (nothing saved as an `Attempt`,
+  nothing survives a refresh — `startOver()` just resets component state), no
+  rubric/Effective-score involvement (the camera toggle in `PracticeRecorder`
+  still works but its signal goes unused here), no nav link yet (reachable only
+  at `/grill` directly), not wired to PostHog. See "Open questions" for the
+  follow-on (content-scored qualities) this would need to plug into the rubric.
 - Persistence: **Postgres via Prisma**, scoped to an anonymous session.
   - Identity: `middleware.ts` ensures every request carries a `vg_sid` httpOnly
     cookie (random UUID) and forwards it to route handlers via an `x-vg-sid`
@@ -113,8 +138,10 @@ signals — rolled up into a single "Effective" score.
     `newId` are unchanged. No component reads or writes localStorage for app
     data any more (the `FeedbackWidget` survey-dismissal key is the only
     remaining localStorage use, and that's per-browser UI state, not data).
-- Usage cap: /api/generate-script and /api/practice-feedback share the
-  `UsageCounter` row (env: DEMO_REQUEST_LIMIT) via `lib/usageCounter.ts`
+- Usage cap: every Claude-calling route — /api/generate-script,
+  /api/practice-feedback, and the three `/grill` routes
+  (/api/generate-questions, /api/followup-question, /api/qa-feedback) — shares
+  the `UsageCounter` row (env: DEMO_REQUEST_LIMIT) via `lib/usageCounter.ts`
   (`recordRequest` does an atomic `upsert … increment`). Durable + roughly
   concurrency-safe now. Check it at GET /api/usage-count (gate with
   USAGE_ADMIN_TOKEN).
@@ -126,16 +153,19 @@ signals — rolled up into a single "Effective" score.
     `lib/clientErrors.ts` (dynamic-imports the SDK, dead-code-eliminated with no
     DSN). API routes call `Sentry.captureException` / `captureMessage` in their
     catch + verification paths, tagged with `route` + request id.
-  - The two Claude routes emit full-lifecycle structured console logs via
+  - All five Claude routes (`generate-script`, `practice-feedback`, and the
+    three `/grill` routes) emit full-lifecycle structured console logs via
     `lib/logger.ts` (`[<route> <request-id>]` — request received / anthropic
     call started / succeeded|failed / response sent / blocked by cap /
     verification failed). `expert-request` and `script-label` log their own
     lifecycle; `state` and `attempts` log failures only, through the same helper.
   - Before returning, `lib/verifyOutput.ts` checks the feedback has all 5
     required sections (Nonverbal is optional) and the script is
-    non-empty/structured. A failure is logged + sent to Sentry and the route
-    returns a graceful 502 (`code: feedback_incomplete` / `script_malformed`)
-    rather than partial content.
+    non-empty/structured, plus the `/grill` equivalents (4 required sections
+    for `qa-feedback`, non-empty/well-formed for `generate-questions` and
+    `followup-question`). A failure is logged + sent to Sentry and the route
+    returns a graceful 502 (`code: feedback_incomplete` / `script_malformed` /
+    `questions_malformed` / `followup_malformed`) rather than partial content.
 - Product analytics (PostHog):
   - `lib/analytics.ts` — the only place `posthog-js` is touched. Lazy
     `import()`, no-op unless NEXT_PUBLIC_POSTHOG_KEY is set. `initAnalytics()`,
@@ -197,7 +227,7 @@ signals — rolled up into a single "Effective" score.
   Run manually (`npm run eval`, `tsx` devDependency); not wired into CI or any
   schedule. Re-run by hand when `lib/prompt.ts` or `MODEL`
   (`lib/anthropic.ts`) changes. Full docs: README.md "Quality evals".
-- `evals/dataset.ts` — 13 realistic situations spanning all 6 tone presets.
+- `evals/dataset.ts` — 14 realistic situations spanning all 7 tone presets.
 - `evals/generateSyntheticAttempt.ts` — a Claude call that synthesizes a
   rehearsal transcript standing in for a human attempt, at `strong` /
   `average` / `weak` delivery quality (deliberately varies filler words,
@@ -218,14 +248,55 @@ signals — rolled up into a single "Effective" score.
 
 ## Effectiveness rubric + score
 - 8 aspirational attributes (Connected / Present / Smooth / Composed / Warm /
-  Confident / Grounded / Clear). Each maps to a weighted blend of observable
+  Confident / Steady / Clear). Each maps to a weighted blend of observable
   signals (eye contact, posture, stillness, expressiveness, composure, volume,
-  voice steadiness, fluency, pace) in `lib/rubric.ts`.
+  voice steadiness, fluency, pace) in `lib/rubric.ts`. "Steady" (posture +
+  stillness) was named "Grounded" until the `defending` tone preset was added —
+  renamed to free up "Grounded" for a future content-accuracy quality; see
+  "Open questions" below.
+- 7 tone presets (`TONE_RUBRIC_PRESETS` in `lib/rubric.ts`, `Tone` in
+  `lib/types.ts`): professional, personal, high-stakes, supportive, persuasive,
+  celebratory, and `defending` ("Defending your work" — presenting/proposing
+  under expert Q&A or cross-examination, staying composed and precise under
+  pushback on a specific claim rather than overclaiming). Adding a tone means
+  filling in `TONES`/`TONE_LABELS` (types.ts), `TONE_RUBRIC_PRESETS` (rubric.ts)
+  and `TONE_GUIDANCE` (prompt.ts) — the `Record<Tone, …>` types on all three
+  make the compiler catch a missed one. The tone dropdowns (`ScriptForm.tsx`,
+  `BringScriptFlow.tsx`) just map over `TONES`, so no separate UI wiring.
 - The picker on `/` is pre-tuned per tone (`TONE_RUBRIC_PRESETS`) and retunes
   live when the tone changes; editing it flips to a saved custom rubric.
 - Each take yields one client-computed **Effective** score (0–100 + band
   label). It's shown on `/practice` and fed into the feedback prompt so the
   coaching targets the highest-weighted quality that scored lowest.
+
+## Open questions
+- **Content-scored qualities ("Grounded" = evidence-backed claims, "Precise" =
+  exact numbers/definitions when known, honest uncertainty when not).** Wanted
+  for the `defending` tone preset (see above) but NOT started — today every
+  `RUBRIC_ATTRIBUTES` quality maps only to physical/vocal signals computed
+  client-side (`computeSignals` in `lib/rubric.ts`, from audio/MediaPipe/pace),
+  and that Effective score is computed *before* the feedback API call and sent
+  to Claude as context — Claude narrates a number, it never produces one. Content
+  qualities need the reverse: transcript → Claude scores factual grounding →
+  score feeds the Effective number. That touches: the model output shape
+  (`lib/anthropic.ts`/`lib/prompt.ts` — `generatePracticeFeedback` returns one
+  markdown string today; would need a parsed structured score, either a leading
+  block like the existing `Title:` line trick in `generateScript`, or a second
+  cheap call like `script-label`), `lib/verifyOutput.ts` (validate the new
+  score output, 502 gracefully if missing), `lib/types.ts` (`ObservableSignals`
+  is specifically signals measurable from audio/video — a new parallel
+  server-sourced signal type), `lib/rubric.ts` (`scoreAttribute`/
+  `computeEffective` need to merge client- and server-computed signals, which
+  they don't today), and `PracticeSession.tsx` (Effective currently renders
+  before feedback is fetched — needs either a provisional physical-only score
+  that upgrades, or delaying the score until feedback returns). `defending`
+  ships now on existing physical/vocal qualities only (`steady` standing in for
+  "didn't visibly rattle"); this is tracked as a distinct follow-up feature, not
+  a blocker. `/grill` (see Architecture above) is the natural home to start this
+  from — its `qa-feedback` prompt already asks Claude to judge "Accuracy vs.
+  source" in prose, so turning that into a numeric score is a smaller step than
+  starting from `practice-feedback` — but `/grill` v0 still has no
+  rubric/Effective-score involvement at all, so this remains unstarted.
 
 ## Design system
 - Adopted from the "VocalGym Design System" Claude Design project
@@ -310,6 +381,12 @@ signals — rolled up into a single "Effective" score.
   switch `SiteHeader` (+ footer / hero) from the text wordmark to `<BrandMark>`.
 - Sentry source-map upload (set SENTRY_ORG / SENTRY_PROJECT / SENTRY_AUTH_TOKEN
   and drop `sourcemaps.disable` in `next.config.mjs` for readable stack traces)
+- `/grill` v0 is a prototype, not a finished feature: no link from `/` or
+  `SiteHeader` yet (direct URL only), no persistence (no `Attempt` history, no
+  resume on refresh), not instrumented with PostHog events, and the recorder's
+  camera toggle works but its signal isn't used by the feedback call. See
+  Architecture above and "Open questions" for the content-scored-quality
+  follow-up it's meant to lead into.
 
 ## Maintenance
 - After completing a feature or meaningful architectural change, update this

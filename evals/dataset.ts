@@ -98,4 +98,12 @@ export const DATASET: EvalCase[] = [
     tone: "persuasive",
     notes: "high-pressure persuasive case, distinct from tool/rent asks",
   },
+  {
+    id: "architecture-review-defense",
+    situation:
+      "I'm presenting a proposal to migrate our service to a new database at an architecture review, and a senior engineer is going to press me hard on latency numbers and edge cases I haven't fully tested yet.",
+    tone: "defending",
+    notes:
+      "defending-under-Q&A case — should reward conceding untested claims over guessing at numbers",
+  },
 ];

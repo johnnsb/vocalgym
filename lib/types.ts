@@ -5,6 +5,7 @@ export const TONES = [
   "supportive",
   "persuasive",
   "celebratory",
+  "defending",
 ] as const;
 
 export type Tone = (typeof TONES)[number];
@@ -16,6 +17,7 @@ export const TONE_LABELS: Record<Tone, string> = {
   supportive: "Supportive",
   persuasive: "Persuasive",
   celebratory: "Celebratory",
+  defending: "Defending your work",
 };
 
 export interface GenerateScriptRequest {
@@ -102,7 +104,7 @@ export const RUBRIC_ATTRIBUTES = [
   "composed",
   "warm",
   "confident",
-  "grounded",
+  "steady",
   "clear",
 ] as const;
 export type RubricAttribute = (typeof RUBRIC_ATTRIBUTES)[number];
@@ -160,6 +162,50 @@ export interface PracticeFeedbackRequest {
 }
 
 export interface PracticeFeedbackResponse {
+  feedback: string;
+}
+
+/**
+ * "Grill" mode (app/grill) — defend uploaded material under AI-generated
+ * follow-up questioning. Separate from the script/practice types above: there's
+ * no prepared script here, and no rubric/Effective-score involvement (v0 is
+ * qualitative feedback only — see CLAUDE.md "Open questions" for the
+ * content-scored-quality work this would need to plug into the rubric).
+ */
+export interface GenerateQuestionsRequest {
+  /** Extracted text of the uploaded/pasted material. */
+  source: string;
+}
+
+export interface GenerateQuestionsResponse {
+  /** 3-6 likely reviewer questions about the material. */
+  questions: string[];
+}
+
+/** One question plus the transcript of the user's spoken answer to it. */
+export interface QAExchange {
+  question: string;
+  transcript: string;
+}
+
+export interface FollowUpQuestionRequest {
+  source: string;
+  originalQuestion: string;
+  transcript: string;
+  /** The other generated questions, so the follow-up doesn't duplicate their ground. */
+  otherQuestions?: string[];
+}
+
+export interface FollowUpQuestionResponse {
+  followUp: string;
+}
+
+export interface QAFeedbackRequest {
+  source: string;
+  exchanges: QAExchange[];
+}
+
+export interface QAFeedbackResponse {
   feedback: string;
 }
 
