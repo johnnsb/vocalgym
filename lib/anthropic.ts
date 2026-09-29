@@ -12,9 +12,22 @@ import {
   buildFollowUpPrompt,
   QA_FEEDBACK_SYSTEM_PROMPT,
   buildQAFeedbackPrompt,
+  INTERVIEW_PLAN_SYSTEM_PROMPT,
+  buildInterviewPlanPrompt,
+  INTERVIEW_FOLLOWUP_SYSTEM_PROMPT,
+  buildInterviewFollowUpPrompt,
+  INTERVIEW_FEEDBACK_SYSTEM_PROMPT,
+  buildInterviewFeedbackPrompt,
   type FeedbackPromptExtras,
 } from "./prompt";
-import type { QAExchange, Tone } from "./types";
+import type {
+  InterviewExchange,
+  InterviewPanelist,
+  InterviewPrepState,
+  PlannedQuestion,
+  QAExchange,
+  Tone,
+} from "./types";
 
 /**
  * Model used for script generation. Swap this one line to change models
@@ -206,6 +219,95 @@ export async function generateQAFeedback(
     system: QA_FEEDBACK_SYSTEM_PROMPT,
     messages: [
       { role: "user", content: buildQAFeedbackPrompt(source, exchanges) },
+    ],
+  });
+  return textOf(response);
+}
+
+// --- Interview prep (app/prep/interview) ------------------------------------
+
+// "P2: …", tolerating a leading bullet/number and bold markers:
+// "- **P1:** …", "2. P2 — …", "3) **P1** - …".
+const PLAN_LINE =
+  /^[ \t]*(?:[-*•]|\d+[.)])?[ \t]*\**[ \t]*P(\d+)[ \t]*\**[ \t]*[:.)\-–—][ \t]*\**[ \t]*(.+)$/i;
+
+/** Parse the plan (see INTERVIEW_PLAN_SYSTEM_PROMPT) into tagged questions.
+ *  Only tagged lines count. An out-of-range tag keeps an empty panelistId so
+ *  verifyInterviewPlan rejects the plan instead of rendering "undefined asks". */
+export function parseInterviewPlan(
+  text: string,
+  panel: InterviewPanelist[],
+): PlannedQuestion[] {
+  const out: PlannedQuestion[] = [];
+  for (const line of text.split("\n")) {
+    const m = line.match(PLAN_LINE);
+    if (!m) continue;
+    const question = cleanQuestion(m[2].replace(/\*+/g, ""));
+    if (!question) continue;
+    out.push({ panelistId: panel[Number(m[1]) - 1]?.id ?? "", question });
+  }
+  return out;
+}
+
+export async function generateInterviewPlan(
+  prep: InterviewPrepState,
+): Promise<PlannedQuestion[]> {
+  const response = await getClient().messages.create({
+    model: MODEL,
+    max_tokens: 1024,
+    system: INTERVIEW_PLAN_SYSTEM_PROMPT,
+    messages: [{ role: "user", content: buildInterviewPlanPrompt(prep) }],
+  });
+  return parseInterviewPlan(textOf(response), prep.panel);
+}
+
+/** `null` = the model said NONE (answer was complete). `""` = empty reply
+ *  (caller's verification treats it as malformed). A reply starting "None"
+ *  that ends in "?" is a real question, not NONE. */
+export function parseFollowUp(text: string): string | null {
+  const q = cleanQuestion(text.trim().replace(/^\*+|\*+$/g, ""));
+  if (!q) return "";
+  if (/^\**none\b/i.test(q) && !q.endsWith("?")) return null;
+  return q;
+}
+
+export async function generateInterviewFollowUp(
+  prep: InterviewPrepState,
+  panelistId: string,
+  question: string,
+  transcript: string,
+  upcomingQuestions: string[],
+): Promise<string | null> {
+  const response = await getClient().messages.create({
+    model: MODEL,
+    max_tokens: 200,
+    system: INTERVIEW_FOLLOWUP_SYSTEM_PROMPT,
+    messages: [
+      {
+        role: "user",
+        content: buildInterviewFollowUpPrompt(
+          prep,
+          panelistId,
+          question,
+          transcript,
+          upcomingQuestions,
+        ),
+      },
+    ],
+  });
+  return parseFollowUp(textOf(response));
+}
+
+export async function generateInterviewFeedback(
+  prep: InterviewPrepState,
+  exchanges: InterviewExchange[],
+): Promise<string> {
+  const response = await getClient().messages.create({
+    model: MODEL,
+    max_tokens: 3000,
+    system: INTERVIEW_FEEDBACK_SYSTEM_PROMPT,
+    messages: [
+      { role: "user", content: buildInterviewFeedbackPrompt(prep, exchanges) },
     ],
   });
   return textOf(response);

@@ -243,3 +243,74 @@ export interface PracticeAttempt {
   /** The script's label at the time of the attempt (denormalized). */
   scriptLabel?: string | null;
 }
+
+/**
+ * Interview prep (app/prep/interview) — rehearse a mock interview with a
+ * described panel. No script: the context is who's interviewing (anything
+ * known about each person) plus optional candidate-side material. Separate
+ * from the script/practice and "grill" types; no rubric/Effective score in v0.
+ */
+export interface InterviewPanelist {
+  /** Client-generated (newId), stable across edits. */
+  id: string;
+  name: string;
+  title: string;
+  company: string;
+  /** Anything known: bio, pasted LinkedIn text, their writing, history. */
+  about: string;
+  /** Questions they've asked before (free text). */
+  pastQuestions: string;
+}
+
+export interface InterviewCandidate {
+  jobDescription: string;
+  /** Resume / notes on experience. */
+  background: string;
+  keyPoints: string[];
+}
+
+export interface InterviewPrepState {
+  panel: InterviewPanelist[];
+  candidate: InterviewCandidate;
+}
+
+export interface PlannedQuestion {
+  panelistId: string;
+  question: string;
+}
+
+/** One planned question, the spoken answer, and (optionally) one follow-up. */
+export interface InterviewExchange {
+  panelistId: string;
+  question: string;
+  transcript: string;
+  followUp?: string;
+  followUpTranscript?: string;
+}
+
+export type InterviewQuestionsRequest = InterviewPrepState;
+
+export interface InterviewQuestionsResponse {
+  questions: PlannedQuestion[];
+}
+
+export interface InterviewFollowUpRequest extends InterviewPrepState {
+  panelistId: string;
+  question: string;
+  transcript: string;
+  /** Planned questions still to come, so the follow-up doesn't duplicate them. */
+  upcomingQuestions: string[];
+}
+
+export interface InterviewFollowUpResponse {
+  /** null = the answer was complete; move to the next planned question. */
+  followUp: string | null;
+}
+
+export interface InterviewFeedbackRequest extends InterviewPrepState {
+  exchanges: InterviewExchange[];
+}
+
+export interface InterviewFeedbackResponse {
+  feedback: string;
+}

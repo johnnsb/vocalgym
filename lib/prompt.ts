@@ -1,5 +1,8 @@
 import type {
   EffectiveResult,
+  InterviewExchange,
+  InterviewPanelist,
+  InterviewPrepState,
   NonverbalMetrics,
   ObservableSignals,
   QAExchange,
@@ -270,5 +273,169 @@ export function buildQAFeedbackPrompt(
   lines.push(
     "Give the feedback. Anything you describe as in the proposal must appear in <source_material>; anything only in an <answer> is something they said.",
   );
+  return lines.join("\n");
+}
+
+// --- Interview prep (app/prep/interview) ------------------------------------
+
+/** "P1".."Pn" for a panelist id (panel order), "P?" if not found. */
+export function panelTag(panel: InterviewPanelist[], panelistId: string): string {
+  const i = panel.findIndex((p) => p.id === panelistId);
+  return i === -1 ? "P?" : `P${i + 1}`;
+}
+
+/** The shared panel + candidate context for all three interview prompts. XML
+ *  tags with explicit closers, like the grill prompts: pasted LinkedIn text and
+ *  resumes are full of their own headings and rules. Empty fields are omitted;
+ *  an interviewer with nothing filled in still gets a tag so P-numbering stays
+ *  aligned with the panel array. */
+export function buildInterviewContext({ panel, candidate }: InterviewPrepState): string {
+  const lines: string[] = ["<panel>"];
+  panel.forEach((p, i) => {
+    lines.push(`<interviewer tag="P${i + 1}">`);
+    const before = lines.length;
+    if (p.name.trim()) lines.push(`Name: ${p.name.trim()}`);
+    if (p.title.trim()) lines.push(`Title: ${p.title.trim()}`);
+    if (p.company.trim()) lines.push(`Company: ${p.company.trim()}`);
+    if (p.about.trim()) {
+      lines.push("<what_we_know>", p.about.trim(), "</what_we_know>");
+    }
+    if (p.pastQuestions.trim()) {
+      lines.push(
+        "<questions_they_have_asked_before>",
+        p.pastQuestions.trim(),
+        "</questions_they_have_asked_before>",
+      );
+    }
+    if (lines.length === before) lines.push("(no details given)");
+    lines.push("</interviewer>");
+  });
+  lines.push("</panel>");
+
+  if (candidate.jobDescription.trim()) {
+    lines.push("", "<job_description>", candidate.jobDescription.trim(), "</job_description>");
+  }
+  if (candidate.background.trim()) {
+    lines.push("", "<candidate_background>", candidate.background.trim(), "</candidate_background>");
+  }
+  if (candidate.keyPoints.length) {
+    lines.push(
+      "",
+      "<key_points_to_land>",
+      candidate.keyPoints.map((k) => `- ${k}`).join("\n"),
+      "</key_points_to_land>",
+    );
+  }
+  return lines.join("\n");
+}
+
+export const INTERVIEW_PLAN_SYSTEM_PROMPT = `You are running a realistic mock job interview. You are given the interview panel (each interviewer tagged P1, P2, …, with whatever the candidate knows about them) and, optionally, the job description, the candidate's background, and points the candidate wants to land.
+
+Plan the interview as 4 or 5 questions, in the order a real interview would ask them: a warm opener, then the substantive questions, then a closing question.
+
+- Spread the questions across the panel. Each question is asked by one interviewer and must sound like that person: their role, their priorities, and anything the candidate knows about them should shape what they ask and how.
+- If an interviewer has <questions_they_have_asked_before>, include at least one of those questions, verbatim or lightly adapted, asked by that interviewer.
+- When a job description or candidate background is given, aim questions at them — name a specific project, skill, or gap where you can ("Walk me through the Acme migration — what did you own?").
+- Don't ask about the key points directly; they are what the candidate hopes to work in, not a question list.
+
+They will answer out loud, so each question asks exactly one thing: a single sentence ending in "?", under 30 words, no compound second half.
+
+Reply with ONLY the plan, one question per line, in exactly this form:
+P1: <question>
+P2: <question>
+...
+No preamble, no numbering, no commentary.`;
+
+export function buildInterviewPlanPrompt(prep: InterviewPrepState): string {
+  return [buildInterviewContext(prep), "", "Plan the interview."].join("\n");
+}
+
+export const INTERVIEW_FOLLOWUP_SYSTEM_PROMPT = `You are one interviewer on a mock interview panel. You just asked the candidate a question and heard their spoken answer (captured by speech-to-text — ignore transcription noise). Decide whether a real interviewer in your seat would follow up.
+
+Follow up when the answer left something concrete unresolved: a vague claim with no example, a result with no number or outcome, a decision with no reasoning, "we" where you need to know what they personally did, or the part of the question they sidestepped. Name the specific thing you're pressing on — never "can you elaborate" or "tell me more".
+
+Don't follow up when the answer was complete and specific; move on instead. Don't ask anything the upcoming planned questions already cover.
+
+Stay in character as the interviewer tagged in <asked_by>: their role and priorities shape what they'd press on.
+
+If you follow up: ask exactly one thing — a single sentence ending in "?", under 30 words, no compound second half. Reply with ONLY the question, no quotes, no preamble.
+If you don't: reply with exactly NONE.`;
+
+export function buildInterviewFollowUpPrompt(
+  prep: InterviewPrepState,
+  panelistId: string,
+  question: string,
+  transcript: string,
+  upcomingQuestions: string[],
+): string {
+  const lines = [
+    buildInterviewContext(prep),
+    "",
+    `<asked_by tag="${panelTag(prep.panel, panelistId)}" />`,
+    "<question>",
+    question.trim(),
+    "</question>",
+    "",
+    "<candidate_answer>",
+    "(Spoken out loud and transcribed by speech-to-text — expect some transcription noise.)",
+    transcript.trim(),
+    "</candidate_answer>",
+  ];
+  if (upcomingQuestions.length) {
+    lines.push(
+      "",
+      "<upcoming_questions>",
+      upcomingQuestions.map((q) => `- ${q}`).join("\n"),
+      "</upcoming_questions>",
+    );
+  }
+  lines.push("", "Follow up, or reply NONE.");
+  return lines.join("\n");
+}
+
+export const INTERVIEW_FEEDBACK_SYSTEM_PROMPT = `You are an interview coach reviewing a mock interview. The candidate answered each question out loud (captured by speech-to-text — ignore transcription noise and never comment on it). Some questions got one follow-up from the same interviewer.
+
+You are given the panel (tagged P1, P2, …, with what the candidate knows about each person), optionally the job description, the candidate's background, and key points they wanted to land, then the exchanges.
+
+Give focused, encouraging, specific feedback they can act on before the real interview. Quote short phrases from their answers where it helps. When their background contains a stronger or more relevant example than the one they used, name it.
+
+Format the response in Markdown with these sections, in this order, using exactly these bold headings:
+- **Overall** — two or three sentences on how the interview went.
+- **Question by question** — for each exchange, a "### " subheading with the question (shortened if long), then 2 to 3 bullets: what worked, what was missing (a result, a number, their personal role, a direct answer), and how the follow-up went if there was one.
+- **Key points** — ONLY if <key_points_to_land> is present: for each key point, whether it landed, where, or that it never came up. Omit this section entirely otherwise.
+- **Reading the panel** — 2 to 3 bullets on how well the answers matched what each interviewer appears to care about, by name or title.
+- **For your next round** — 2 to 3 concrete, prioritized changes.
+
+Be direct but supportive. No preamble before the feedback.`;
+
+export function buildInterviewFeedbackPrompt(
+  prep: InterviewPrepState,
+  exchanges: InterviewExchange[],
+): string {
+  const lines = [buildInterviewContext(prep), ""];
+  exchanges.forEach((ex, i) => {
+    lines.push(
+      `<exchange number="${i + 1}" asked_by="${panelTag(prep.panel, ex.panelistId)}">`,
+      "<question>",
+      ex.question.trim(),
+      "</question>",
+      "<answer>",
+      ex.transcript.trim(),
+      "</answer>",
+    );
+    // A follow-up shown but never answered (ended early) is left out entirely.
+    if (ex.followUp?.trim() && ex.followUpTranscript?.trim()) {
+      lines.push(
+        "<follow_up>",
+        ex.followUp.trim(),
+        "</follow_up>",
+        "<follow_up_answer>",
+        ex.followUpTranscript.trim(),
+        "</follow_up_answer>",
+      );
+    }
+    lines.push("</exchange>", "");
+  });
+  lines.push("Give the feedback.");
   return lines.join("\n");
 }

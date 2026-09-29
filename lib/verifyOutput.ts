@@ -1,6 +1,8 @@
 // Lightweight shape checks on model output before it reaches the frontend, so a
 // malformed / truncated response becomes a clean error instead of broken UI.
 
+import type { InterviewPanelist } from "./types";
+
 // Matches a Markdown heading line (##, **bold**, or a "- **bold**" bullet) that
 // starts with the given section name.
 const HEAD = String.raw`(?:^|\n)[ \t]*(?:[-*][ \t]+)?(?:#{1,6}[ \t]+)?\*{0,2}[ \t]*`;
@@ -134,5 +136,59 @@ export function verifyQAFeedback(text: unknown): QAFeedbackCheck {
   const missing = REQUIRED_QA_FEEDBACK_SECTIONS.filter(
     (s) => !s.re.test(text),
   ).map((s) => s.label);
+  return { ok: missing.length === 0, missing };
+}
+
+// --- Interview prep (app/prep/interview) ------------------------------------
+
+/** 3-6 complete questions, each attributed to a panelist that exists. The
+ *  prompt asks for 4-5; the range is slack, not the target. */
+export function verifyInterviewPlan(
+  questions: unknown,
+  panel: InterviewPanelist[],
+): QuestionsCheck {
+  if (!Array.isArray(questions) || questions.length < 3) {
+    return { ok: false, reason: "too-few" };
+  }
+  if (questions.length > 6) return { ok: false, reason: "too-many" };
+  const ids = new Set(panel.map((p) => p.id));
+  for (const q of questions) {
+    if (!q || typeof q !== "object" || typeof q.question !== "string") {
+      return { ok: false, reason: "malformed-item" };
+    }
+    if (!ids.has(q.panelistId)) return { ok: false, reason: "unknown-panelist" };
+  }
+  return verifyQuestions(questions.map((q) => q.question));
+}
+
+const INTERVIEW_FEEDBACK_SECTIONS: { label: string; re: RegExp; keyPointsOnly?: boolean }[] = [
+  { label: "Overall", body: String.raw`overall\b` },
+  { label: "Question by question", body: String.raw`question[\s-]+by[\s-]+question\b` },
+  { label: "Key points", body: String.raw`key\s+points\b`, keyPointsOnly: true },
+  { label: "Reading the panel", body: String.raw`reading\s+the\s+panel\b` },
+  { label: "For your next round", body: String.raw`(?:for\s+your\s+)?next\s+round\b` },
+].map(({ label, body, keyPointsOnly }) => ({
+  label,
+  re: new RegExp(HEAD + body, "i"),
+  keyPointsOnly,
+}));
+
+/** Required interview-feedback sections; "Key points" only when the candidate
+ *  gave key points (the prompt tells Claude to omit it otherwise). */
+export function verifyInterviewFeedback(
+  text: unknown,
+  hasKeyPoints: boolean,
+): FeedbackCheck {
+  const required = INTERVIEW_FEEDBACK_SECTIONS.filter(
+    (s) => hasKeyPoints || !s.keyPointsOnly,
+  );
+  if (typeof text !== "string" || text.trim().length < 60) {
+    return {
+      ok: false,
+      missing: required.map((s) => s.label),
+      reason: "empty-or-too-short",
+    };
+  }
+  const missing = required.filter((s) => !s.re.test(text)).map((s) => s.label);
   return { ok: missing.length === 0, missing };
 }

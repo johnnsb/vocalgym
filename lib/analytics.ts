@@ -89,6 +89,10 @@ export const EVENTS = {
   practiceSessionCompleted: "practice_session_completed",
   feedbackReceived: "feedback_received",
   expertRequestSubmitted: "expert_request_submitted",
+  interviewSetupSaved: "interview_setup_saved",
+  interviewRoundStarted: "interview_round_started",
+  interviewRoundCompleted: "interview_round_completed",
+  interviewFeedbackReceived: "interview_feedback_received",
   surveySent: "survey sent",
   surveyDismissed: "survey dismissed",
 } as const;
