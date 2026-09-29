@@ -182,6 +182,7 @@ lib/
   prisma.ts                        Shared PrismaClient singleton (HMR-safe); pooled at runtime
   interviewPrep.ts                 Pure: interview limits, normalizePrep / normalizeExchanges, labels
   interviewPrep.server.ts          InterviewPrep table access (getPrep / savePrep)
+  interviewRound.ts                Pure: recordAnswer / shouldPersist (interview data-safety rules)
   interviewPrepStore.ts            Client fetch wrapper over /api/interview-prep
   claudeRoute.ts                   Shared demo-cap + Anthropic-error responses (interview routes)
   clientFetch.ts                   Client postJSON with demo-cap handling (interview UI)

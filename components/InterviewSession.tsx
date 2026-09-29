@@ -8,6 +8,7 @@ import FeedbackWidget from "./FeedbackWidget";
 import { DEMO_LIMIT_MESSAGE, postJSON, type FetchError } from "@/lib/clientFetch";
 import { loadInterviewPrep, saveInterviewPrep } from "@/lib/interviewPrepStore";
 import { emptyPrep, hasPanelContent, panelistLabel } from "@/lib/interviewPrep";
+import { recordAnswer, shouldPersist } from "@/lib/interviewRound";
 import { reportClientError } from "@/lib/clientErrors";
 import { EVENTS, track } from "@/lib/analytics";
 import type {
@@ -55,21 +56,38 @@ export default function InterviewSession() {
   // when the form actually differs from it (so hydration and stage changes
   // never trigger a redundant PUT, and the first real edit always saves).
   const lastSaved = useRef("");
+  // After a failed load the form is blank, so saving would overwrite the
+  // user's real saved panel — saving stays off for the rest of the visit.
+  const loadFailed = useRef(false);
 
-  // Hydrate the saved panel once.
+  // Hydrate the saved panel once (one retry: Neon cold starts fail the first
+  // connection now and then).
   useEffect(() => {
     loadInterviewPrep()
+      .catch(() => new Promise((r) => setTimeout(r, 1000)).then(loadInterviewPrep))
       .then((p) => {
         lastSaved.current = JSON.stringify(p);
         setPrep(p);
       })
       .catch((err) => {
         reportClientError(err, { area: "interview:load" });
-        lastSaved.current = JSON.stringify(emptyPrep());
-        setSaveWarning("Couldn't load your saved panel — starting fresh.");
+        loadFailed.current = true;
+        setSaveWarning(
+          "Couldn't load your saved panel. You can still practice, but changes won't be saved this visit.",
+        );
       })
       .finally(() => setStage("setup"));
   }, []);
+
+  function persistIfChanged(state: InterviewPrepState) {
+    const snapshot = JSON.stringify(state);
+    if (
+      !shouldPersist({ loadFailed: loadFailed.current, snapshot, lastSaved: lastSaved.current })
+    ) {
+      return;
+    }
+    void persist(state);
+  }
 
   function persist(state: InterviewPrepState) {
     const snapshot = JSON.stringify(state);
@@ -88,8 +106,8 @@ export default function InterviewSession() {
 
   // Debounced auto-save while editing.
   useEffect(() => {
-    if (stage !== "setup" || JSON.stringify(prep) === lastSaved.current) return;
-    const t = setTimeout(() => void persist(prep), SAVE_DEBOUNCE_MS);
+    if (stage !== "setup") return;
+    const t = setTimeout(() => persistIfChanged(prep), SAVE_DEBOUNCE_MS);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [prep, stage]);
@@ -107,7 +125,7 @@ export default function InterviewSession() {
     setError(null);
     setDemoLimited(false);
     setStage("planning");
-    if (JSON.stringify(prep) !== lastSaved.current) void persist(prep);
+    persistIfChanged(prep);
     track(EVENTS.interviewSetupSaved, {
       panel_size: prep.panel.length,
       has_jd: Boolean(prep.candidate.jobDescription.trim()),
@@ -150,21 +168,14 @@ export default function InterviewSession() {
     if (!answer) return;
     setError(null);
 
+    const planned = plan[index];
+    const ex = recordAnswer(exchanges, onFollowUp, planned, answer);
+    setExchanges(ex);
     if (onFollowUp) {
-      const ex = exchanges.map((e, i) =>
-        i === exchanges.length - 1 ? { ...e, followUpTranscript: answer } : e,
-      );
-      setExchanges(ex);
       advance(ex);
       return;
     }
 
-    const planned = plan[index];
-    const ex = [
-      ...exchanges,
-      { panelistId: planned.panelistId, question: planned.question, transcript: answer },
-    ];
-    setExchanges(ex);
     setStage("followup-loading");
     try {
       const data = await postJSON<InterviewFollowUpResponse>("/api/interview-followup", {
@@ -291,7 +302,13 @@ export default function InterviewSession() {
           onTranscript={setTranscript}
           onSubmit={submitAnswer}
           canEndEarly={exchanges.length > 0}
-          onEndEarly={() => void getFeedback(exchanges)}
+          onEndEarly={() => {
+            // Include the answer already on screen — ending early shouldn't
+            // silently drop the take the user just recorded.
+            const ex = recordAnswer(exchanges, onFollowUp, planned, transcript);
+            setExchanges(ex);
+            void getFeedback(ex);
+          }}
         />
         {notices}
       </div>

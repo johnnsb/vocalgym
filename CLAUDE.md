@@ -100,6 +100,11 @@ signals — rolled up into a single "Effective" score.
     routes, server, and client; unit-tested. Limits: panel 1–4; name/title/
     company 120; about 8,000; pastQuestions 2,000; JD/background 8,000;
     key points ≤5 × 200. Over-limit text is truncated, never rejected.
+  - `lib/interviewRound.ts` (pure, unit-tested) holds the two data-safety
+    decisions: `recordAnswer` (used by Continue AND "End early", so an answer
+    already on screen is never dropped) and `shouldPersist` (auto-save and
+    Start never PUT after a failed load — the GET retries once, then saving is
+    off for the visit so a blank form can't overwrite the real saved panel).
   - Three Claude routes, all sharing `buildInterviewContext` (XML-tagged
     `<panel>` with `P1..Pn` interviewer tags + candidate sections) in
     `lib/prompt.ts`:
