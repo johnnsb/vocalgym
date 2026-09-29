@@ -336,7 +336,7 @@ Plan the interview as 4 or 5 questions, in the order a real interview would ask 
 - Spread the questions across the panel. Each question is asked by one interviewer and must sound like that person: their role, their priorities, and anything the candidate knows about them should shape what they ask and how.
 - If an interviewer has <questions_they_have_asked_before>, include at least one of those questions, verbatim or lightly adapted, asked by that interviewer.
 - When a job description or candidate background is given, aim questions at them — name a specific project, skill, or gap where you can ("Walk me through the Acme migration — what did you own?").
-- Don't ask about the key points directly; they are what the candidate hopes to work in, not a question list.
+- <key_points_to_land> are what the candidate hopes to work into their answers on their own — the practice is finding the opening. Never ask about a key point or name its subject (no "Tell me about the migration you led" when a key point is "I led the migration"). Instead, make sure at least one question is broad enough to leave room for it ("Tell me about a project you're proud of").
 
 They will answer out loud, so each question asks exactly one thing: a single sentence ending in "?", under 30 words, no compound second half.
 

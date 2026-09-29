@@ -29,12 +29,13 @@ describe("recordAnswer", () => {
 
 describe("shouldPersist", () => {
   it("saves when the form differs from what's on the server", () => {
-    expect(shouldPersist({ loadFailed: false, snapshot: "b", lastSaved: "a" })).toBe(true);
+    expect(shouldPersist({ loaded: true, snapshot: "b", lastSaved: "a" })).toBe(true);
   });
   it("skips when nothing changed", () => {
-    expect(shouldPersist({ loadFailed: false, snapshot: "a", lastSaved: "a" })).toBe(false);
+    expect(shouldPersist({ loaded: true, snapshot: "a", lastSaved: "a" })).toBe(false);
   });
-  it("never saves after a failed load, so a blank form can't overwrite the real saved panel", () => {
-    expect(shouldPersist({ loadFailed: true, snapshot: "b", lastSaved: "a" })).toBe(false);
+  it("never saves until the saved panel has loaded — covers a failed load and an early unmount", () => {
+    expect(shouldPersist({ loaded: false, snapshot: "b", lastSaved: "a" })).toBe(false);
+    expect(shouldPersist({ loaded: false, snapshot: "blank", lastSaved: "" })).toBe(false);
   });
 });

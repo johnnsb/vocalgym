@@ -4,7 +4,7 @@ import { useRef, useState, type ChangeEvent } from "react";
 import { ACCEPTED_UPLOAD, extractScriptText } from "@/lib/scriptImport";
 import { reportClientError } from "@/lib/clientErrors";
 import { newId } from "@/lib/practiceStore";
-import { PREP_LIMITS, emptyPanelist } from "@/lib/interviewPrep";
+import { PREP_LIMITS, emptyPanelist, keyPointInputs as keyPointBoxes } from "@/lib/interviewPrep";
 import type { InterviewPanelist, InterviewPrepState } from "@/lib/types";
 import { Button, Callout, Card, Field, IconButton, Input, Textarea } from "@/components/ui";
 
@@ -176,12 +176,10 @@ export default function PanelSetup({ value, onChange }: Props) {
         value.candidate.keyPoints.length,
     ),
   );
+  const [jdNote, setJdNote] = useState<string | null>(null);
+  const [backgroundNote, setBackgroundNote] = useState<string | null>(null);
   const { panel, candidate } = value;
-  // Always show one empty key-point input below the filled ones (up to 5).
-  const keyPointInputs =
-    candidate.keyPoints.length < PREP_LIMITS.keyPointsMax
-      ? [...candidate.keyPoints, ""]
-      : candidate.keyPoints;
+  const keyPointInputs = keyPointBoxes(candidate.keyPoints);
 
   const setPanel = (next: InterviewPanelist[]) => onChange({ ...value, panel: next });
   const setCandidate = (patch: Partial<InterviewPrepState["candidate"]>) =>
@@ -190,8 +188,11 @@ export default function PanelSetup({ value, onChange }: Props) {
   function setKeyPoint(i: number, text: string) {
     const next = [...keyPointInputs];
     next[i] = text;
-    // Blank entries are dropped; the trailing empty input is re-added on render.
-    setCandidate({ keyPoints: next.filter((k) => k.trim() !== "") });
+    // Keep a cleared middle box in place (so nothing shifts under the cursor);
+    // only trailing blanks are trimmed — keyPointBoxes re-adds one. The server
+    // drops blanks when saving.
+    while (next.length && next[next.length - 1].trim() === "") next.pop();
+    setCandidate({ keyPoints: next });
   }
 
   return (
@@ -247,8 +248,12 @@ export default function PanelSetup({ value, onChange }: Props) {
               />
               <UploadInto
                 area="interview:upload-jd"
-                onText={(text) => setCandidate({ jobDescription: text })}
+                onText={(text, n) => {
+                  setCandidate({ jobDescription: text });
+                  setJdNote(n);
+                }}
               />
+              {jdNote && <Callout tone="info">{jdNote}</Callout>}
             </Field>
             <Field
               label="Your resume or background"
@@ -264,8 +269,12 @@ export default function PanelSetup({ value, onChange }: Props) {
               />
               <UploadInto
                 area="interview:upload-background"
-                onText={(text) => setCandidate({ background: text })}
+                onText={(text, n) => {
+                  setCandidate({ background: text });
+                  setBackgroundNote(n);
+                }}
               />
+              {backgroundNote && <Callout tone="info">{backgroundNote}</Callout>}
             </Field>
             <Field
               label="Key points you want to land"
