@@ -72,8 +72,9 @@ export function normalizePrep(input: unknown): InterviewPrepState {
   const seen = new Set<string>();
   const panel = rawPanel.map((v, i): InterviewPanelist => {
     const p = obj(v);
-    let id = str(p.id, PREP_LIMITS.id).trim() || `p${i + 1}`;
-    if (seen.has(id)) id = `${id}-${i + 1}`;
+    const base = str(p.id, PREP_LIMITS.id).trim() || `p${i + 1}`;
+    let id = base;
+    for (let n = i + 1; seen.has(id); n++) id = `${base}-${n}`;
     seen.add(id);
     return {
       id,
@@ -95,6 +96,18 @@ export function panelistHasContent(p: InterviewPanelist): boolean {
   return [p.name, p.title, p.company, p.about, p.pastQuestions].some(
     (f) => f.trim().length > 0,
   );
+}
+
+/** The key-point boxes to render: the saved list (blanks kept in place, so
+ *  clearing a middle point doesn't shift the boxes under the cursor) plus one
+ *  trailing empty box when the last one has text, up to the max. Blanks are
+ *  dropped server-side by normalizePrep. */
+export function keyPointInputs(keyPoints: string[]): string[] {
+  const list = keyPoints.slice(0, PREP_LIMITS.keyPointsMax);
+  const last = list[list.length - 1];
+  const needsBlank =
+    list.length < PREP_LIMITS.keyPointsMax && (last === undefined || last.trim() !== "");
+  return needsBlank ? [...list, ""] : list;
 }
 
 /** At least one interviewer has something filled in — the "Start" gate. */

@@ -25,12 +25,13 @@ export function recordAnswer(
   ];
 }
 
-/** Whether to PUT the setup. Never after a failed load: the form then shows a
- *  blank panel, and saving it would overwrite the user's real saved one. */
+/** Whether to PUT the setup. Only after the saved panel has loaded
+ *  successfully: before that (or after a failed load) the form holds a blank
+ *  panel, and saving it would overwrite the user's real saved one. */
 export function shouldPersist(opts: {
-  loadFailed: boolean;
+  loaded: boolean;
   snapshot: string;
   lastSaved: string;
 }): boolean {
-  return !opts.loadFailed && opts.snapshot !== opts.lastSaved;
+  return opts.loaded && opts.snapshot !== opts.lastSaved;
 }

@@ -56,9 +56,10 @@ export default function InterviewSession() {
   // when the form actually differs from it (so hydration and stage changes
   // never trigger a redundant PUT, and the first real edit always saves).
   const lastSaved = useRef("");
-  // After a failed load the form is blank, so saving would overwrite the
-  // user's real saved panel — saving stays off for the rest of the visit.
-  const loadFailed = useRef(false);
+  // True once the saved panel has loaded. Nothing is saved before that — not
+  // after a failed load, and not on an early unmount (e.g. React StrictMode's
+  // dev remount) — or the blank initial form would overwrite the real panel.
+  const loaded = useRef(false);
 
   // Hydrate the saved panel once (one retry: Neon cold starts fail the first
   // connection now and then).
@@ -66,12 +67,12 @@ export default function InterviewSession() {
     loadInterviewPrep()
       .catch(() => new Promise((r) => setTimeout(r, 1000)).then(loadInterviewPrep))
       .then((p) => {
+        loaded.current = true;
         lastSaved.current = JSON.stringify(p);
         setPrep(p);
       })
       .catch((err) => {
         reportClientError(err, { area: "interview:load" });
-        loadFailed.current = true;
         setSaveWarning(
           "Couldn't load your saved panel. You can still practice, but changes won't be saved this visit.",
         );
@@ -82,7 +83,7 @@ export default function InterviewSession() {
   function persistIfChanged(state: InterviewPrepState) {
     const snapshot = JSON.stringify(state);
     if (
-      !shouldPersist({ loadFailed: loadFailed.current, snapshot, lastSaved: lastSaved.current })
+      !shouldPersist({ loaded: loaded.current, snapshot, lastSaved: lastSaved.current })
     ) {
       return;
     }
@@ -112,6 +113,27 @@ export default function InterviewSession() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [prep, stage]);
 
+  // Flush a save still waiting on the debounce when the user leaves — tab
+  // close / reload (pagehide) or in-app navigation (unmount). keepalive lets
+  // the PUT outlive the page. Reads the latest form via a ref.
+  const latestPrep = useRef(prep);
+  latestPrep.current = prep;
+  useEffect(() => {
+    const flush = () => {
+      const snapshot = JSON.stringify(latestPrep.current);
+      if (!shouldPersist({ loaded: loaded.current, snapshot, lastSaved: lastSaved.current })) {
+        return;
+      }
+      lastSaved.current = snapshot;
+      saveInterviewPrep(latestPrep.current, { keepalive: true }).catch(() => {});
+    };
+    window.addEventListener("pagehide", flush);
+    return () => {
+      window.removeEventListener("pagehide", flush);
+      flush();
+    };
+  }, []);
+
   function fail(err: unknown, area: string, revertTo: Stage) {
     if ((err as FetchError)?.demoLimited) setDemoLimited(true);
     else {
@@ -130,7 +152,7 @@ export default function InterviewSession() {
       panel_size: prep.panel.length,
       has_jd: Boolean(prep.candidate.jobDescription.trim()),
       has_background: Boolean(prep.candidate.background.trim()),
-      key_points_count: prep.candidate.keyPoints.length,
+      key_points_count: prep.candidate.keyPoints.filter((k) => k.trim()).length,
     });
     try {
       const data = await postJSON<InterviewQuestionsResponse>("/api/interview-questions", prep);

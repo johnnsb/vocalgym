@@ -161,6 +161,11 @@ export function verifyInterviewPlan(
   return verifyQuestions(questions.map((q) => q.question));
 }
 
+// Like HEAD, but only bold or level-1/2 headings count as sections: interview
+// feedback uses "### <question>" subheadings, and one that happens to start
+// with a section name ("### Next round of funding…?") mustn't satisfy it.
+const SECTION_HEAD = String.raw`(?:^|\n)[ \t]*(?:[-*][ \t]+)?(?:#{1,2}[ \t]+)?\*{0,2}[ \t]*`;
+
 const INTERVIEW_FEEDBACK_SECTIONS: { label: string; re: RegExp; keyPointsOnly?: boolean }[] = [
   { label: "Overall", body: String.raw`overall\b` },
   { label: "Question by question", body: String.raw`question[\s-]+by[\s-]+question\b` },
@@ -169,7 +174,7 @@ const INTERVIEW_FEEDBACK_SECTIONS: { label: string; re: RegExp; keyPointsOnly?: 
   { label: "For your next round", body: String.raw`(?:for\s+your\s+)?next\s+round\b` },
 ].map(({ label, body, keyPointsOnly }) => ({
   label,
-  re: new RegExp(HEAD + body, "i"),
+  re: new RegExp(SECTION_HEAD + body, "i"),
   keyPointsOnly,
 }));
 

@@ -52,3 +52,20 @@ describe("verifyInterviewFeedback", () => {
     expect(verifyInterviewFeedback(null, false).ok).toBe(false);
   });
 });
+
+describe("verifyInterviewFeedback section headings", () => {
+  it("does not let a ### question subheading stand in for a missing section", () => {
+    const text = [
+      "**Overall** — Solid.",
+      "**Question by question**",
+      "### Next round of funding — how would you prioritize?",
+      "- Good hook.",
+      "**Reading the panel** — Priya wanted numbers.",
+    ].join("\n");
+    expect(verifyInterviewFeedback(text, false)).toMatchObject({ ok: false, missing: ["For your next round"] });
+  });
+  it("still accepts ## section headings", () => {
+    const text = ["## Overall", "Solid.", "## Question by question", "- x", "## Reading the panel", "- y", "## For your next round", "- z"].join("\n");
+    expect(verifyInterviewFeedback(text, false).ok).toBe(true);
+  });
+});

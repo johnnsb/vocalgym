@@ -4,6 +4,7 @@ import {
   emptyPanelist,
   emptyPrep,
   hasPanelContent,
+  keyPointInputs,
   normalizeExchanges,
   normalizePrep,
   panelistLabel,
@@ -116,5 +117,29 @@ describe("normalizeExchanges", () => {
     expect(normalizeExchanges("nope")).toEqual([]);
     const many = Array.from({ length: 15 }, () => ({ panelistId: "a", question: "Q?", transcript: "x" }));
     expect(normalizeExchanges(many)).toHaveLength(10);
+  });
+});
+
+describe("keyPointInputs", () => {
+  it("adds one trailing empty box when the last point has text", () => {
+    expect(keyPointInputs([])).toEqual([""]);
+    expect(keyPointInputs(["a"])).toEqual(["a", ""]);
+  });
+  it("keeps a cleared middle point in place instead of removing it", () => {
+    expect(keyPointInputs(["a", "", "c"])).toEqual(["a", "", "c", ""]);
+  });
+  it("doesn't add another box while the last one is still empty", () => {
+    expect(keyPointInputs(["a", ""])).toEqual(["a", ""]);
+    expect(keyPointInputs(["a", "  "])).toEqual(["a", "  "]);
+  });
+  it("never shows more than 5 boxes", () => {
+    expect(keyPointInputs(["a", "b", "c", "d", "e"])).toHaveLength(5);
+  });
+});
+
+describe("normalizePrep id de-duplication", () => {
+  it("re-checks suffixed ids so every id is unique", () => {
+    const ids = normalizePrep({ panel: [{ id: "a" }, { id: "a-3" }, { id: "a" }] }).panel.map((p) => p.id);
+    expect(new Set(ids).size).toBe(3);
   });
 });

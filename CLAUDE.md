@@ -94,17 +94,31 @@ signals — rolled up into a single "Effective" score.
     `InterviewPrep` table via `GET/PUT /api/interview-prep`
     (`lib/interviewPrep.server.ts`, client `lib/interviewPrepStore.ts`);
     auto-save is debounced ~800ms and only fires when the form differs from
-    the last-saved JSON snapshot. No LinkedIn URL fetching.
+    the last-saved JSON snapshot; a save still pending when the user leaves
+    (in-app navigation → unmount, or tab close/reload → `pagehide`) is flushed
+    with `fetch(…, { keepalive: true })`. No LinkedIn URL fetching. Key-point
+    boxes come from `keyPointInputs` — a cleared middle box stays in place
+    (client state may hold blanks; the server drops them), plus one trailing
+    empty box. Every upload (about / JD / background) shows the "trimmed to
+    8,000 characters" note.
   - `lib/interviewPrep.ts` is the PURE half (limits, `normalizePrep`,
-    `normalizeExchanges`, `panelistLabel`, `hasPanelContent`) — used by
+    `normalizeExchanges`, `panelistLabel`, `hasPanelContent`,
+    `keyPointInputs`) — used by
     routes, server, and client; unit-tested. Limits: panel 1–4; name/title/
     company 120; about 8,000; pastQuestions 2,000; JD/background 8,000;
     key points ≤5 × 200. Over-limit text is truncated, never rejected.
   - `lib/interviewRound.ts` (pure, unit-tested) holds the two data-safety
     decisions: `recordAnswer` (used by Continue AND "End early", so an answer
-    already on screen is never dropped) and `shouldPersist` (auto-save and
-    Start never PUT after a failed load — the GET retries once, then saving is
-    off for the visit so a blank form can't overwrite the real saved panel).
+    already on screen is never dropped) and `shouldPersist` (auto-save, Start,
+    and the leave-flush only PUT once the saved panel has LOADED successfully —
+    the GET retries once; after a failed load, or on an early unmount such as
+    StrictMode's dev remount, nothing is saved, so a blank form can never
+    overwrite the real saved panel).
+  - The plan prompt never asks about a key point or names its subject; it
+    keeps at least one broad question so the candidate can work it in.
+  - `verifyInterviewFeedback` matches sections only at bold or `#`/`##`
+    headings (`SECTION_HEAD`), so a `### <question>` subheading that starts
+    with a section name can't satisfy a missing section.
   - Three Claude routes, all sharing `buildInterviewContext` (XML-tagged
     `<panel>` with `P1..Pn` interviewer tags + candidate sections) in
     `lib/prompt.ts`:
