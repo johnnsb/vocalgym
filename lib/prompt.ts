@@ -392,3 +392,50 @@ export function buildInterviewFollowUpPrompt(
   lines.push("", "Follow up, or reply NONE.");
   return lines.join("\n");
 }
+
+export const INTERVIEW_FEEDBACK_SYSTEM_PROMPT = `You are an interview coach reviewing a mock interview. The candidate answered each question out loud (captured by speech-to-text — ignore transcription noise and never comment on it). Some questions got one follow-up from the same interviewer.
+
+You are given the panel (tagged P1, P2, …, with what the candidate knows about each person), optionally the job description, the candidate's background, and key points they wanted to land, then the exchanges.
+
+Give focused, encouraging, specific feedback they can act on before the real interview. Quote short phrases from their answers where it helps. When their background contains a stronger or more relevant example than the one they used, name it.
+
+Format the response in Markdown with these sections, in this order, using exactly these bold headings:
+- **Overall** — two or three sentences on how the interview went.
+- **Question by question** — for each exchange, a "### " subheading with the question (shortened if long), then 2 to 3 bullets: what worked, what was missing (a result, a number, their personal role, a direct answer), and how the follow-up went if there was one.
+- **Key points** — ONLY if <key_points_to_land> is present: for each key point, whether it landed, where, or that it never came up. Omit this section entirely otherwise.
+- **Reading the panel** — 2 to 3 bullets on how well the answers matched what each interviewer appears to care about, by name or title.
+- **For your next round** — 2 to 3 concrete, prioritized changes.
+
+Be direct but supportive. No preamble before the feedback.`;
+
+export function buildInterviewFeedbackPrompt(
+  prep: InterviewPrepState,
+  exchanges: InterviewExchange[],
+): string {
+  const lines = [buildInterviewContext(prep), ""];
+  exchanges.forEach((ex, i) => {
+    lines.push(
+      `<exchange number="${i + 1}" asked_by="${panelTag(prep.panel, ex.panelistId)}">`,
+      "<question>",
+      ex.question.trim(),
+      "</question>",
+      "<answer>",
+      ex.transcript.trim(),
+      "</answer>",
+    );
+    // A follow-up shown but never answered (ended early) is left out entirely.
+    if (ex.followUp?.trim() && ex.followUpTranscript?.trim()) {
+      lines.push(
+        "<follow_up>",
+        ex.followUp.trim(),
+        "</follow_up>",
+        "<follow_up_answer>",
+        ex.followUpTranscript.trim(),
+        "</follow_up_answer>",
+      );
+    }
+    lines.push("</exchange>", "");
+  });
+  lines.push("Give the feedback.");
+  return lines.join("\n");
+}

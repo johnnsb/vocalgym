@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { buildInterviewContext, buildInterviewFollowUpPrompt, panelTag } from "./prompt";
+import {
+  buildInterviewContext,
+  buildInterviewFeedbackPrompt,
+  buildInterviewFollowUpPrompt,
+  panelTag,
+} from "./prompt";
 import { emptyPanelist, emptyPrep } from "./interviewPrep";
 import type { InterviewPrepState } from "./types";
 
@@ -55,5 +60,25 @@ describe("buildInterviewFollowUpPrompt", () => {
   });
   it("omits the upcoming block when there are none", () => {
     expect(buildInterviewFollowUpPrompt(prep(), "a", "Q?", "A", [])).not.toContain("<upcoming_questions>");
+  });
+});
+
+describe("buildInterviewFeedbackPrompt", () => {
+  it("numbers exchanges, tags the asker, and includes answered follow-ups", () => {
+    const text = buildInterviewFeedbackPrompt(prep(), [
+      { panelistId: "a", question: "Q1?", transcript: "A1", followUp: "F1?", followUpTranscript: "FA1" },
+      { panelistId: "b", question: "Q2?", transcript: "A2" },
+    ]);
+    expect(text).toContain('<exchange number="1" asked_by="P1">');
+    expect(text).toContain('<exchange number="2" asked_by="P2">');
+    expect(text).toContain("<follow_up>\nF1?\n</follow_up>");
+    expect(text).toContain("FA1");
+  });
+  it("never includes a follow-up that has no answer", () => {
+    const text = buildInterviewFeedbackPrompt(prep(), [
+      { panelistId: "a", question: "Q1?", transcript: "A1", followUp: "F1?" },
+    ]);
+    expect(text).not.toContain("F1?");
+    expect(text).not.toContain("<follow_up>");
   });
 });

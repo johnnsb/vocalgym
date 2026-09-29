@@ -16,9 +16,12 @@ import {
   buildInterviewPlanPrompt,
   INTERVIEW_FOLLOWUP_SYSTEM_PROMPT,
   buildInterviewFollowUpPrompt,
+  INTERVIEW_FEEDBACK_SYSTEM_PROMPT,
+  buildInterviewFeedbackPrompt,
   type FeedbackPromptExtras,
 } from "./prompt";
 import type {
+  InterviewExchange,
   InterviewPanelist,
   InterviewPrepState,
   PlannedQuestion,
@@ -293,6 +296,21 @@ export async function generateInterviewFollowUp(
     ],
   });
   return parseFollowUp(textOf(response));
+}
+
+export async function generateInterviewFeedback(
+  prep: InterviewPrepState,
+  exchanges: InterviewExchange[],
+): Promise<string> {
+  const response = await getClient().messages.create({
+    model: MODEL,
+    max_tokens: 3000,
+    system: INTERVIEW_FEEDBACK_SYSTEM_PROMPT,
+    messages: [
+      { role: "user", content: buildInterviewFeedbackPrompt(prep, exchanges) },
+    ],
+  });
+  return textOf(response);
 }
 
 function textOf(response: Anthropic.Message): string {
