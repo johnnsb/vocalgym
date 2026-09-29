@@ -29,6 +29,10 @@ signals — rolled up into a single "Effective" score.
   candidates for a later paid upgrade once the UX is validated.
 - pdfjs-dist for parsing uploaded PDF scripts (client-side, dynamically
   imported only on first PDF use)
+- Vitest 3 (`npm test`, `vitest.config.ts`) — unit tests for pure `lib/`
+  logic only (`lib/**/*.test.ts`: interview normalization, prompt builders,
+  parsers, output verifiers). UI flows are verified manually in the browser.
+  Pinned to v3 because v5 peer-requires `@types/node` ≥22 and the repo is on 20.
 - Sentry (@sentry/nextjs v10) for error tracking — gated on
   NEXT_PUBLIC_SENTRY_DSN (blank = fully disabled, zero client-bundle cost;
   `next.config.mjs` only wires in `withSentryConfig` when the DSN is set). A DSN
@@ -74,7 +78,55 @@ signals — rolled up into a single "Effective" score.
   - `/faq` — stub with a handful of real short Q&As (accounts, storage, camera,
     cost, browsers); linked from `SiteHeader` and the footer.
   - `/signin` — thin "coming soon" stub page.
+  - `/prep` — "Practice from your notes" hub, reached ONLY from a quiet strip
+    under the three path cards ("Have an interview or presentation coming
+    up?") — deliberately kept out of the main three-path flow and the nav.
+    Interview card → `/prep/interview`; Presentation card is a disabled
+    "Coming soon".
   Both `/script` and `/generate` also render the effectiveness rubric picker.
+- `/prep/interview` (`InterviewSession`) — mock interview with no script. State
+  machine `loading → setup → planning → round ⇄ followup-loading →
+  feedback-loading → feedback`.
+  - Setup (`PanelSetup.tsx`, controlled): 1–4 interviewers (name / title /
+    company / "what do you know about them?" / "questions they've asked
+    before", upload via `extractScriptText`) + optional candidate side (job
+    description, background, ≤5 key points). Persisted per session in the
+    `InterviewPrep` table via `GET/PUT /api/interview-prep`
+    (`lib/interviewPrep.server.ts`, client `lib/interviewPrepStore.ts`);
+    auto-save is debounced ~800ms and only fires when the form differs from
+    the last-saved JSON snapshot. No LinkedIn URL fetching.
+  - `lib/interviewPrep.ts` is the PURE half (limits, `normalizePrep`,
+    `normalizeExchanges`, `panelistLabel`, `hasPanelContent`) — used by
+    routes, server, and client; unit-tested. Limits: panel 1–4; name/title/
+    company 120; about 8,000; pastQuestions 2,000; JD/background 8,000;
+    key points ≤5 × 200. Over-limit text is truncated, never rejected.
+  - Three Claude routes, all sharing `buildInterviewContext` (XML-tagged
+    `<panel>` with `P1..Pn` interviewer tags + candidate sections) in
+    `lib/prompt.ts`:
+    `POST /api/interview-questions` → `INTERVIEW_PLAN_SYSTEM_PROMPT`, 4–5
+    `P<n>: question` lines parsed by `parseInterviewPlan` (tolerates bullets/
+    bold/numbering; out-of-range tag → empty id) and checked by
+    `verifyInterviewPlan` (3–6, known panelists, complete questions) → 502
+    `interview_plan_malformed`.
+    `POST /api/interview-followup` → `NONE` or one question
+    (`parseFollowUp`: NONE variants → null, but "None of…?" is a question);
+    a malformed follow-up is logged + Sentry'd and returned as
+    `{ followUp: null }` (200) so the round never stalls. Client asks at most
+    one follow-up per planned question.
+    `POST /api/interview-feedback` → Overall / Question by question (`###`
+    per question) / Key points (only when given) / Reading the panel / For
+    your next round; `verifyInterviewFeedback(text, hasKeyPoints)` → 502
+    `feedback_incomplete`. A follow-up shown but never answered (ended early)
+    is dropped by `normalizeExchanges` and never reaches the prompt.
+  - `lib/claudeRoute.ts` (`demoLimitResponse`, `anthropicErrorResponse`) and
+    `lib/clientFetch.ts` (`postJSON`) are shared helpers used ONLY by the
+    interview routes/UI — the older routes keep their inline copies.
+  - `InterviewFeedbackSections.tsx` is its own renderer (anchored section
+    regexes so a `### question` subheading can't be mistaken for a section).
+  - **v0 scope**: rounds not persisted (refresh → setup with the panel
+    intact), camera toggle works but its signal is unused, no rubric/
+    Effective score. Interviewer profiles are third-party personal data —
+    never sent to PostHog and not previewed in server logs.
 - `/practice` — practice session: record audio (+ optional video), transcribe,
   submit to POST /api/practice-feedback for Claude-generated coaching notes.
   Camera frames never leave the browser — only the derived metric summary and
@@ -112,7 +164,8 @@ signals — rolled up into a single "Effective" score.
     upserts the `Session` row. No accounts yet — the cookie *is* the user.
   - Models (`prisma/schema.prisma`): `Session` (1 per browser; `currentScript`
     and `rubric` are `Json?` blobs — StoredScript / RubricSelection shapes),
-    `Attempt` (FK → Session, cascade; newest 50/session kept), `ExpertRequest`,
+    `Attempt` (FK → Session, cascade; newest 50/session kept), `InterviewPrep`
+    (1:1 with Session, cascade; `panel` / `candidate` Json), `ExpertRequest`,
     `UsageCounter` (single row id=1). There is no scripts table — the
     `currentScript` blob carries `id` + `label` (see below), and `Attempt` has
     denormalized `scriptId` / `scriptLabel` columns so history can be grouped.
@@ -133,7 +186,8 @@ signals — rolled up into a single "Effective" score.
     `scriptId` / `scriptLabel`), `DELETE /api/attempts` (clear all),
     `DELETE /api/attempts/[id]` (one, session-scoped so a foreign id is a
     no-op), `POST /api/script-label` (Haiku, best-effort → `{ label }`, not
-    counted against the demo cap).
+    counted against the demo cap), `GET/PUT /api/interview-prep` (the
+    session's interview panel setup; normalized on write and read).
   - `PastAttempts.tsx` groups the history by `scriptId` — a header per script
     (its `scriptLabel`, falling back to the situation text), groups ordered by
     most-recently-practiced, attempts within a group newest-first, each row
@@ -147,8 +201,10 @@ signals — rolled up into a single "Effective" score.
     data any more (the `FeedbackWidget` survey-dismissal key is the only
     remaining localStorage use, and that's per-browser UI state, not data).
 - Usage cap: every Claude-calling route — /api/generate-script,
-  /api/practice-feedback, and the three `/grill` routes
-  (/api/generate-questions, /api/followup-question, /api/qa-feedback) — shares
+  /api/practice-feedback, the three `/grill` routes
+  (/api/generate-questions, /api/followup-question, /api/qa-feedback), and the
+  three interview routes (/api/interview-questions, /api/interview-followup,
+  /api/interview-feedback; a full round = 3–7 counted calls) — shares
   the `UsageCounter` row (env: DEMO_REQUEST_LIMIT) via `lib/usageCounter.ts`
   (`recordRequest` does an atomic `upsert … increment`). Durable + roughly
   concurrency-safe now. Check it at GET /api/usage-count (gate with
@@ -161,8 +217,8 @@ signals — rolled up into a single "Effective" score.
     `lib/clientErrors.ts` (dynamic-imports the SDK, dead-code-eliminated with no
     DSN). API routes call `Sentry.captureException` / `captureMessage` in their
     catch + verification paths, tagged with `route` + request id.
-  - All five Claude routes (`generate-script`, `practice-feedback`, and the
-    three `/grill` routes) emit full-lifecycle structured console logs via
+  - All eight Claude routes (`generate-script`, `practice-feedback`, the
+    three `/grill` routes, and the three interview routes) emit full-lifecycle structured console logs via
     `lib/logger.ts` (`[<route> <request-id>]` — request received / anthropic
     call started / succeeded|failed / response sent / blocked by cap /
     verification failed). `expert-request` and `script-label` log their own
@@ -194,7 +250,12 @@ signals — rolled up into a single "Effective" score.
     ({tone, method: paste|upload|reused}), `practice_session_started`
     ({tone, source}), `practice_session_completed` ({used_video, duration_sec}),
     `feedback_received` ({used_video, effective_score, effective_band}),
-    `expert_request_submitted` (no props). Verified end-to-end: seeded secret
+    `expert_request_submitted` (no props), `interview_setup_saved`
+    ({panel_size, has_jd, has_background, key_points_count} — fired on Start,
+    not per auto-save), `interview_round_started` ({panel_size,
+    question_count}), `interview_round_completed` ({answered, followups,
+    ended_early, duration_sec}), `interview_feedback_received` (no props).
+    Verified end-to-end: seeded secret
     script/PII text never appeared in any outgoing PostHog request.
   - `components/FeedbackWidget.tsx` — one dismissible smiley-rating pattern used
     at every completion point: after a script is generated (`GenerateFlow`),
@@ -206,7 +267,7 @@ signals — rolled up into a single "Effective" score.
     `ANALYTICS_ENABLED` (renders nothing without a key); remembers done/dismissed
     per browser in localStorage (`vocalgym:survey:<key>` — keys
     `script_generated_rating`, `practice_feedback_rating`,
-    `general_feedback_rating`). Dashboard-created PostHog surveys also render
+    `general_feedback_rating`, `interview_feedback_rating`). Dashboard-created PostHog surveys also render
     since `disable_surveys` is left default.
 
 ## Site-wide password gate
@@ -393,6 +454,11 @@ signals — rolled up into a single "Effective" score.
   needs SENTRY_ORG / SENTRY_PROJECT / SENTRY_AUTH_TOKEN provided (in `.env.local`
   for a local prod build, or as host/CI secrets) to start uploading on
   `next build`.
+- Presentation mode (`/prep` card is "Coming soon"): speaker notes /
+  talking points as context → deliver the talk → feedback on coverage of each
+  point + delivery. Closer in shape to `/practice` than to the interview flow.
+- Interview rounds (`/prep/interview`) aren't persisted — no round history,
+  no resume after refresh; the camera signal is unused there too.
 - `/grill` v0 is a prototype, not a finished feature: no link from `/` or
   `SiteHeader` yet (direct URL only), no persistence (no `Attempt` history, no
   resume on refresh), not instrumented with PostHog events, and the recorder's

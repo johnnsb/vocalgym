@@ -5,7 +5,10 @@ three paths: **bring your own words** (`/script` — paste or upload a `.txt` /
 `.md` / `.pdf`), **have us write them** (`/generate` — describe the situation,
 pick an optional tone, get a script), or **get expert guidance** (`/experts` — a
 contact form; a human follows up with a tailored script). The first two lead
-straight to the rehearsal step.
+straight to the rehearsal step. A quiet strip under those cards — *"Have an
+interview or presentation coming up?"* — leads to **`/prep`**, for practicing
+without a script: a **mock interview** built from what you know about your
+interviewers (see "Interview prep" below); presentation mode is coming soon.
 
 Then open **Practice**: record yourself running the script, review the
 speech-to-text transcript, and get coaching notes from Claude on what landed and
@@ -77,6 +80,16 @@ Claude Design project — see **Design system** below.
    no-op on the normal edit-save-reload loop. If you ever still hit an
    unstyled page, the manual fix is `rm -rf .next && npm run dev`.
 
+5. Run the unit tests:
+
+   ```bash
+   npm test
+   ```
+
+   Vitest, scoped to pure `lib/` logic (`lib/**/*.test.ts` — parsing,
+   normalization, prompt building, output verification). UI flows are checked
+   by hand in the browser. Separate from `npm run eval` (output *quality*).
+
 ## Project structure
 
 ```
@@ -86,7 +99,7 @@ sentry.server.config.ts            \
 sentry.edge.config.ts               } Sentry.init() per runtime (no-op without DSN)
 middleware.ts                      Ensures the anonymous `vg_sid` cookie + the `vg_gate` password-gate check
 prisma/
-  schema.prisma                    Session / Attempt / ExpertRequest / UsageCounter
+  schema.prisma                    Session / Attempt / InterviewPrep / ExpertRequest / UsageCounter
   migrations/                      Committed SQL migrations (prisma migrate)
 app/
   api/generate-script/route.ts     POST -> { script, label } from one Claude call
@@ -95,6 +108,10 @@ app/
   api/generate-questions/route.ts  "grill" v0: POST source text -> { questions } (numbered list)
   api/followup-question/route.ts   "grill" v0: POST question+transcript+source -> { followUp }
   api/qa-feedback/route.ts         "grill" v0: POST source+exchanges -> { feedback } (no rubric)
+  api/interview-prep/route.ts      GET/PUT the session's interview panel setup
+  api/interview-questions/route.ts interview: POST panel -> { questions } (P<n>-tagged plan)
+  api/interview-followup/route.ts  interview: POST answer -> { followUp } (a question or null)
+  api/interview-feedback/route.ts  interview: POST panel+exchanges -> { feedback }
   api/state/route.ts               GET session state (script+rubric+attempts); PATCH to update
   api/attempts/route.ts            POST save an attempt; DELETE clear all
   api/attempts/[id]/route.ts       DELETE one attempt (session-scoped)
@@ -105,7 +122,9 @@ app/
   global-error.tsx                 Catches React render crashes -> Sentry
   layout.tsx                       Root layout (+ SiteHeader nav, AnalyticsProvider)
   providers.tsx                    Client analytics bootstrap + route-change $pageview
-  page.tsx                         Landing page (tagline + 3 path cards)
+  page.tsx                         Landing page (tagline + 3 path cards + /prep strip)
+  prep/page.tsx                    "Practice from your notes" hub (Interview; Presentation coming soon)
+  prep/interview/page.tsx          Mock interview — InterviewSession
   generate/page.tsx                "Help me find the words" — GenerateFlow
   script/page.tsx                  "Bring your own words" — BringScriptFlow
   experts/page.tsx                 "Get expert help" — ExpertRequestForm (no AI)
@@ -137,6 +156,10 @@ components/
   FeedbackWidget.tsx               Dismissible smiley-rating PostHog survey (generate / practice / landing)
   GrillSession.tsx                 "grill" v0 orchestrator: upload -> questions -> record -> follow-up -> record -> feedback
   QAFeedbackSections.tsx           Parses grill feedback markdown (own section set, not FeedbackSections)
+  InterviewSession.tsx             Interview orchestrator: setup -> plan -> round (+follow-ups) -> feedback
+  PanelSetup.tsx                   Interviewer cards (1-4) + optional JD / background / key points
+  InterviewRound.tsx               One question: attribution, progress, recorder, transcript
+  InterviewFeedbackSections.tsx    Parses interview feedback markdown (own section set)
 lib/
   anthropic.ts                     Anthropic client + generateScript() / generatePracticeFeedback() / generateScriptLabel() / generateQuestions() / generateFollowUpQuestion() / generateQAFeedback()
   prompt.ts                        System prompts + prompt builders
@@ -157,6 +180,12 @@ lib/
   analytics.ts                     Lazy PostHog wrapper: track() / pageviews / EVENTS (key-gated)
   expertRequests.ts                ExpertRequest table access for "get expert help"
   prisma.ts                        Shared PrismaClient singleton (HMR-safe); pooled at runtime
+  interviewPrep.ts                 Pure: interview limits, normalizePrep / normalizeExchanges, labels
+  interviewPrep.server.ts          InterviewPrep table access (getPrep / savePrep)
+  interviewPrepStore.ts            Client fetch wrapper over /api/interview-prep
+  claudeRoute.ts                   Shared demo-cap + Anthropic-error responses (interview routes)
+  clientFetch.ts                   Client postJSON with demo-cap handling (interview UI)
+  *.test.ts                        Vitest unit tests (npm test)
 evals/                             Quality evals (npm run eval) — see "Quality evals" below
   dataset.ts                       14 test situations spanning all 7 tone presets
   client.ts                        Shared Anthropic client for eval-only calls (synthetic + judge)
@@ -205,6 +234,7 @@ demo usage counter all live in Postgres. `prisma/schema.prisma` models:
 | --- | --- |
 | `Session` | one row per browser (`vg_sid` cookie). `currentScript` + `rubric` are `Json?` blobs. `currentScript` carries an `id` + a 2–4 word `label` (see below). |
 | `Attempt` | FK → `Session` (cascade delete). Newest 50 per session are kept. `scriptId` / `scriptLabel` are denormalized from the current script so the history sidebar can group by script. |
+| `InterviewPrep` | 1:1 with `Session` (cascade delete). `panel` (1–4 interviewers) + `candidate` (JD / background / key points) `Json` blobs for `/prep/interview`. |
 | `ExpertRequest` | `/experts` form submissions. |
 | `UsageCounter` | single row (`id = 1`) for the demo cap. |
 
@@ -262,9 +292,10 @@ wrapper over `GET/PATCH /api/state` and `POST/DELETE /api/attempts`.
   source maps so stack traces resolve to the original TypeScript; without them
   the build still succeeds and capture still works, traces just stay minified.
   Only `next build` is affected — `npm run dev` never uploads.
-- **Structured logs** — all five Claude routes (`generate-script`,
-  `practice-feedback`, and the three `/grill` routes — `generate-questions`,
-  `followup-question`, `qa-feedback`) log `request received` → `anthropic call
+- **Structured logs** — all eight Claude routes (`generate-script`,
+  `practice-feedback`, the three `/grill` routes — `generate-questions`,
+  `followup-question`, `qa-feedback` — and the three interview routes —
+  `interview-questions`, `interview-followup`, `interview-feedback`) log `request received` → `anthropic call
   started` → `succeeded` / `failed` → `response sent`; `expert-request` and
   `script-label` log their own lifecycle; `state` / `attempts` log failures
   only. Every line is prefixed `[<route> <request-id>]` (see `lib/logger.ts`),
@@ -280,7 +311,12 @@ wrapper over `GET/PATCH /api/state` and `POST/DELETE /api/attempts`.
   shipping mid-sentence). A failure is logged + sent to Sentry and the route
   returns a graceful `502` (`code: feedback_incomplete` / `script_malformed` /
   `questions_malformed` / `followup_malformed`) instead of rendering partial
-  content.
+  content. The interview routes add `verifyInterviewPlan` (3–6 complete
+  questions, each tagged to a real panelist → `interview_plan_malformed`) and
+  `verifyInterviewFeedback` (5 sections, **Key points** only when key points
+  were given → `feedback_incomplete`); a malformed interview follow-up is
+  logged + reported but returned as `{ followUp: null }` so a round never
+  stalls.
 
 ## Product analytics & feedback (PostHog)
 
@@ -297,9 +333,16 @@ wrapper over `GET/PATCH /api/state` and `POST/DELETE /api/attempts`.
     (`{tone, method}`), `practice_session_started` (`{tone, source}`),
     `practice_session_completed` (`{used_video, duration_sec}`),
     `feedback_received` (`{used_video, effective_score, effective_band}`),
-    `expert_request_submitted` (no properties).
-- **What is never sent** — script text, transcript content, feedback text, and
-  the expert-form name/email/situation. `track()`'s props are typed to
+    `expert_request_submitted` (no properties), and for `/prep/interview`:
+    `interview_setup_saved` (`{panel_size, has_jd, has_background,
+    key_points_count}`), `interview_round_started` (`{panel_size,
+    question_count}`), `interview_round_completed` (`{answered, followups,
+    ended_early, duration_sec}`), `interview_feedback_received` (no
+    properties). The interview feedback smiley uses survey key
+    `interview_feedback_rating`.
+- **What is never sent** — script text, transcript content, feedback text,
+  the expert-form name/email/situation, and interviewer profiles / job
+  description / resume / key points. `track()`'s props are typed to
   primitives so content can't be passed by accident; autocapture, session
   recording and anonymous person profiles are all turned off.
 - **In-app feedback** — `components/FeedbackWidget.tsx`: a smiley-rating card
@@ -316,8 +359,11 @@ wrapper over `GET/PATCH /api/state` and `POST/DELETE /api/attempts`.
 
 A lightweight guard against a shared demo link running up an Anthropic bill. It's
 a single combined counter across `/api/generate-script`,
-`/api/practice-feedback`, and the three `/grill` routes
-(`/api/generate-questions`, `/api/followup-question`, `/api/qa-feedback`) —
+`/api/practice-feedback`, the three `/grill` routes
+(`/api/generate-questions`, `/api/followup-question`, `/api/qa-feedback`), and
+the three interview routes (`/api/interview-questions`,
+`/api/interview-followup`, `/api/interview-feedback` — a full round is 3–7
+counted calls) —
 **not** per-user rate limiting, and under concurrency it can overshoot by a few.
 
 - **Set the limit** — `DEMO_REQUEST_LIMIT` in `.env.local` (e.g. `100`). Blank or
@@ -430,6 +476,42 @@ conventions as `generate-script` and `practice-feedback` (see "Demo usage cap"
 and "Observability" above). See CLAUDE.md "Open questions" for the
 content-scored-quality (accuracy/precision as a rubric quality, not just
 prose) work this is meant to lead into.
+
+## Interview prep — mock panel (`/prep/interview`)
+
+Practice for an interview **without a script**. Reached from the `/prep` hub
+(linked by the strip under the landing page's path cards).
+
+1. **Setup** (`PanelSetup.tsx`) — 1–4 interviewers, each with optional name /
+   title / company, a big *"What do you know about them?"* box (paste their
+   LinkedIn text or upload LinkedIn's "Save to PDF" export, things they've
+   written, where they've worked) and *"Questions they've asked before"*.
+   Optional **Your side**: job description, resume/background, up to 5 key
+   points to land. Uploads reuse `extractScriptText` (client-side .txt/.md/.pdf).
+   Auto-saved (~800ms debounce) to the `InterviewPrep` table via
+   `PUT /api/interview-prep`, so it's there next visit. LinkedIn URLs are
+   deliberately not fetched.
+2. **Plan** — `POST /api/interview-questions` → 4–5 questions in realistic
+   order, each asked in a specific panelist's voice (`P<n>: …` lines parsed by
+   `parseInterviewPlan`; any "questions they've asked before" are reused).
+3. **Round** — one question at a time ("Priya Shah · VP Engineering asks:"),
+   answered with `PracticeRecorder`. After each answer
+   `POST /api/interview-followup` returns either one pointed follow-up from the
+   same interviewer or `null` (Claude replied `NONE`) — at most one per
+   question. "End early → get feedback" is available after the first answer.
+4. **Feedback** — `POST /api/interview-feedback` → **Overall** / **Question by
+   question** (a subheading per question) / **Key points** (only if given) /
+   **Reading the panel** / **For your next round**, rendered by
+   `InterviewFeedbackSections.tsx`. "Run another round" re-plans with the same
+   panel; "Edit panel" goes back to setup.
+
+All three prompts share one context block (`buildInterviewContext` in
+`lib/prompt.ts` — XML-tagged panel + candidate sections). v0 scope: rounds are
+not persisted (a refresh returns to setup with the panel intact), the camera
+toggle works but its signal is unused, and there's no rubric/Effective score.
+Interviewer profiles are third-party personal data: stored only on your
+session's row, sent to Anthropic as prompt context, never to PostHog, and not
+included in server logs.
 
 ## Quality evals
 
