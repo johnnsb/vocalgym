@@ -1,5 +1,8 @@
 import type {
   EffectiveResult,
+  InterviewExchange,
+  InterviewPanelist,
+  InterviewPrepState,
   NonverbalMetrics,
   ObservableSignals,
   QAExchange,
@@ -271,4 +274,78 @@ export function buildQAFeedbackPrompt(
     "Give the feedback. Anything you describe as in the proposal must appear in <source_material>; anything only in an <answer> is something they said.",
   );
   return lines.join("\n");
+}
+
+// --- Interview prep (app/prep/interview) ------------------------------------
+
+/** "P1".."Pn" for a panelist id (panel order), "P?" if not found. */
+export function panelTag(panel: InterviewPanelist[], panelistId: string): string {
+  const i = panel.findIndex((p) => p.id === panelistId);
+  return i === -1 ? "P?" : `P${i + 1}`;
+}
+
+/** The shared panel + candidate context for all three interview prompts. XML
+ *  tags with explicit closers, like the grill prompts: pasted LinkedIn text and
+ *  resumes are full of their own headings and rules. Empty fields are omitted;
+ *  an interviewer with nothing filled in still gets a tag so P-numbering stays
+ *  aligned with the panel array. */
+export function buildInterviewContext({ panel, candidate }: InterviewPrepState): string {
+  const lines: string[] = ["<panel>"];
+  panel.forEach((p, i) => {
+    lines.push(`<interviewer tag="P${i + 1}">`);
+    const before = lines.length;
+    if (p.name.trim()) lines.push(`Name: ${p.name.trim()}`);
+    if (p.title.trim()) lines.push(`Title: ${p.title.trim()}`);
+    if (p.company.trim()) lines.push(`Company: ${p.company.trim()}`);
+    if (p.about.trim()) {
+      lines.push("<what_we_know>", p.about.trim(), "</what_we_know>");
+    }
+    if (p.pastQuestions.trim()) {
+      lines.push(
+        "<questions_they_have_asked_before>",
+        p.pastQuestions.trim(),
+        "</questions_they_have_asked_before>",
+      );
+    }
+    if (lines.length === before) lines.push("(no details given)");
+    lines.push("</interviewer>");
+  });
+  lines.push("</panel>");
+
+  if (candidate.jobDescription.trim()) {
+    lines.push("", "<job_description>", candidate.jobDescription.trim(), "</job_description>");
+  }
+  if (candidate.background.trim()) {
+    lines.push("", "<candidate_background>", candidate.background.trim(), "</candidate_background>");
+  }
+  if (candidate.keyPoints.length) {
+    lines.push(
+      "",
+      "<key_points_to_land>",
+      candidate.keyPoints.map((k) => `- ${k}`).join("\n"),
+      "</key_points_to_land>",
+    );
+  }
+  return lines.join("\n");
+}
+
+export const INTERVIEW_PLAN_SYSTEM_PROMPT = `You are running a realistic mock job interview. You are given the interview panel (each interviewer tagged P1, P2, …, with whatever the candidate knows about them) and, optionally, the job description, the candidate's background, and points the candidate wants to land.
+
+Plan the interview as 4 or 5 questions, in the order a real interview would ask them: a warm opener, then the substantive questions, then a closing question.
+
+- Spread the questions across the panel. Each question is asked by one interviewer and must sound like that person: their role, their priorities, and anything the candidate knows about them should shape what they ask and how.
+- If an interviewer has <questions_they_have_asked_before>, include at least one of those questions, verbatim or lightly adapted, asked by that interviewer.
+- When a job description or candidate background is given, aim questions at them — name a specific project, skill, or gap where you can ("Walk me through the Acme migration — what did you own?").
+- Don't ask about the key points directly; they are what the candidate hopes to work in, not a question list.
+
+They will answer out loud, so each question asks exactly one thing: a single sentence ending in "?", under 30 words, no compound second half.
+
+Reply with ONLY the plan, one question per line, in exactly this form:
+P1: <question>
+P2: <question>
+...
+No preamble, no numbering, no commentary.`;
+
+export function buildInterviewPlanPrompt(prep: InterviewPrepState): string {
+  return [buildInterviewContext(prep), "", "Plan the interview."].join("\n");
 }

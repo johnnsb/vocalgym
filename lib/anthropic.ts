@@ -12,9 +12,17 @@ import {
   buildFollowUpPrompt,
   QA_FEEDBACK_SYSTEM_PROMPT,
   buildQAFeedbackPrompt,
+  INTERVIEW_PLAN_SYSTEM_PROMPT,
+  buildInterviewPlanPrompt,
   type FeedbackPromptExtras,
 } from "./prompt";
-import type { QAExchange, Tone } from "./types";
+import type {
+  InterviewPanelist,
+  InterviewPrepState,
+  PlannedQuestion,
+  QAExchange,
+  Tone,
+} from "./types";
 
 /**
  * Model used for script generation. Swap this one line to change models
@@ -209,6 +217,43 @@ export async function generateQAFeedback(
     ],
   });
   return textOf(response);
+}
+
+// --- Interview prep (app/prep/interview) ------------------------------------
+
+// "P2: …", tolerating a leading bullet/number and bold markers:
+// "- **P1:** …", "2. P2 — …", "3) **P1** - …".
+const PLAN_LINE =
+  /^[ \t]*(?:[-*•]|\d+[.)])?[ \t]*\**[ \t]*P(\d+)[ \t]*\**[ \t]*[:.)\-–—][ \t]*\**[ \t]*(.+)$/i;
+
+/** Parse the plan (see INTERVIEW_PLAN_SYSTEM_PROMPT) into tagged questions.
+ *  Only tagged lines count. An out-of-range tag keeps an empty panelistId so
+ *  verifyInterviewPlan rejects the plan instead of rendering "undefined asks". */
+export function parseInterviewPlan(
+  text: string,
+  panel: InterviewPanelist[],
+): PlannedQuestion[] {
+  const out: PlannedQuestion[] = [];
+  for (const line of text.split("\n")) {
+    const m = line.match(PLAN_LINE);
+    if (!m) continue;
+    const question = cleanQuestion(m[2].replace(/\*+/g, ""));
+    if (!question) continue;
+    out.push({ panelistId: panel[Number(m[1]) - 1]?.id ?? "", question });
+  }
+  return out;
+}
+
+export async function generateInterviewPlan(
+  prep: InterviewPrepState,
+): Promise<PlannedQuestion[]> {
+  const response = await getClient().messages.create({
+    model: MODEL,
+    max_tokens: 1024,
+    system: INTERVIEW_PLAN_SYSTEM_PROMPT,
+    messages: [{ role: "user", content: buildInterviewPlanPrompt(prep) }],
+  });
+  return parseInterviewPlan(textOf(response), prep.panel);
 }
 
 function textOf(response: Anthropic.Message): string {
