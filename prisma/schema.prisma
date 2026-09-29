@@ -32,6 +32,8 @@ model Session {
   rubric Json?
 
   attempts Attempt[]
+
+  interviewPrep InterviewPrep?
 }
 
 /// One rehearsal take plus the coaching it got back. Newest 50 per session are
@@ -79,4 +81,19 @@ model UsageCounter {
   id        Int      @id @default(1)
   count     Int      @default(0)
   updatedAt DateTime @updatedAt
+}
+
+/// Interview-prep setup (panel + candidate context) for /prep/interview.
+/// One per session. Rounds themselves are not persisted in v0.
+model InterviewPrep {
+  id        String   @id @default(cuid())
+  sessionId String   @unique
+  session   Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// InterviewPanelist[] (lib/types.ts), 1–4 entries.
+  panel     Json
+  /// InterviewCandidate (lib/types.ts).
+  candidate Json
 }
