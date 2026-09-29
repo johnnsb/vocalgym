@@ -490,11 +490,16 @@ Practice for an interview **without a script**. Reached from the `/prep` hub
    Optional **Your side**: job description, resume/background, up to 5 key
    points to land. Uploads reuse `extractScriptText` (client-side .txt/.md/.pdf).
    Auto-saved (~800ms debounce) to the `InterviewPrep` table via
-   `PUT /api/interview-prep`, so it's there next visit. LinkedIn URLs are
-   deliberately not fetched.
+   `PUT /api/interview-prep`, so it's there next visit; an edit still waiting
+   on the debounce is sent anyway if you navigate away or close the tab. Saving
+   only starts once your saved panel has loaded, so a failed load can never
+   overwrite it. Every upload notes when it was trimmed to 8,000 characters.
+   LinkedIn URLs are deliberately not fetched.
 2. **Plan** — `POST /api/interview-questions` → 4–5 questions in realistic
    order, each asked in a specific panelist's voice (`P<n>: …` lines parsed by
    `parseInterviewPlan`; any "questions they've asked before" are reused).
+   Key points are never asked about directly — at least one question is left
+   broad enough for you to work them in.
 3. **Round** — one question at a time ("Priya Shah · VP Engineering asks:"),
    answered with `PracticeRecorder`. After each answer
    `POST /api/interview-followup` returns either one pointed follow-up from the
