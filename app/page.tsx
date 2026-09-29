@@ -76,6 +76,18 @@ export default function Home() {
             </Card>
           ))}
         </div>
+        <Link
+          href="/prep"
+          className="group mt-6 flex flex-wrap items-center justify-between gap-x-6 gap-y-1 border-y border-border-subtle py-4 no-underline"
+        >
+          <span className="text-body-sm text-text-body">
+            Have an interview or presentation coming up?
+          </span>
+          <span className="inline-flex items-center gap-1 text-body-sm font-medium text-text-accent">
+            Practice from your notes
+            <span className="transition-transform group-hover:translate-x-0.5">&rarr;</span>
+          </span>
+        </Link>
       </section>
 
       <section
