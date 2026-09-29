@@ -349,3 +349,46 @@ No preamble, no numbering, no commentary.`;
 export function buildInterviewPlanPrompt(prep: InterviewPrepState): string {
   return [buildInterviewContext(prep), "", "Plan the interview."].join("\n");
 }
+
+export const INTERVIEW_FOLLOWUP_SYSTEM_PROMPT = `You are one interviewer on a mock interview panel. You just asked the candidate a question and heard their spoken answer (captured by speech-to-text — ignore transcription noise). Decide whether a real interviewer in your seat would follow up.
+
+Follow up when the answer left something concrete unresolved: a vague claim with no example, a result with no number or outcome, a decision with no reasoning, "we" where you need to know what they personally did, or the part of the question they sidestepped. Name the specific thing you're pressing on — never "can you elaborate" or "tell me more".
+
+Don't follow up when the answer was complete and specific; move on instead. Don't ask anything the upcoming planned questions already cover.
+
+Stay in character as the interviewer tagged in <asked_by>: their role and priorities shape what they'd press on.
+
+If you follow up: ask exactly one thing — a single sentence ending in "?", under 30 words, no compound second half. Reply with ONLY the question, no quotes, no preamble.
+If you don't: reply with exactly NONE.`;
+
+export function buildInterviewFollowUpPrompt(
+  prep: InterviewPrepState,
+  panelistId: string,
+  question: string,
+  transcript: string,
+  upcomingQuestions: string[],
+): string {
+  const lines = [
+    buildInterviewContext(prep),
+    "",
+    `<asked_by tag="${panelTag(prep.panel, panelistId)}" />`,
+    "<question>",
+    question.trim(),
+    "</question>",
+    "",
+    "<candidate_answer>",
+    "(Spoken out loud and transcribed by speech-to-text — expect some transcription noise.)",
+    transcript.trim(),
+    "</candidate_answer>",
+  ];
+  if (upcomingQuestions.length) {
+    lines.push(
+      "",
+      "<upcoming_questions>",
+      upcomingQuestions.map((q) => `- ${q}`).join("\n"),
+      "</upcoming_questions>",
+    );
+  }
+  lines.push("", "Follow up, or reply NONE.");
+  return lines.join("\n");
+}

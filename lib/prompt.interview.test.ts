@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildInterviewContext, panelTag } from "./prompt";
+import { buildInterviewContext, buildInterviewFollowUpPrompt, panelTag } from "./prompt";
 import { emptyPanelist, emptyPrep } from "./interviewPrep";
 import type { InterviewPrepState } from "./types";
 
@@ -42,5 +42,18 @@ describe("panelTag", () => {
     expect(panelTag(p, "a")).toBe("P1");
     expect(panelTag(p, "b")).toBe("P2");
     expect(panelTag(p, "zzz")).toBe("P?");
+  });
+});
+
+describe("buildInterviewFollowUpPrompt", () => {
+  it("names the asking interviewer's tag and includes the answer and upcoming questions", () => {
+    const text = buildInterviewFollowUpPrompt(prep(), "b", "Why leave?", "Growth, mostly.", ["What's your stack?"]);
+    expect(text).toContain('<asked_by tag="P2" />');
+    expect(text).toContain("<question>\nWhy leave?\n</question>");
+    expect(text).toContain("Growth, mostly.");
+    expect(text).toContain("- What's your stack?");
+  });
+  it("omits the upcoming block when there are none", () => {
+    expect(buildInterviewFollowUpPrompt(prep(), "a", "Q?", "A", [])).not.toContain("<upcoming_questions>");
   });
 });

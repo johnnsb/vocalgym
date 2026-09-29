@@ -14,6 +14,8 @@ import {
   buildQAFeedbackPrompt,
   INTERVIEW_PLAN_SYSTEM_PROMPT,
   buildInterviewPlanPrompt,
+  INTERVIEW_FOLLOWUP_SYSTEM_PROMPT,
+  buildInterviewFollowUpPrompt,
   type FeedbackPromptExtras,
 } from "./prompt";
 import type {
@@ -254,6 +256,43 @@ export async function generateInterviewPlan(
     messages: [{ role: "user", content: buildInterviewPlanPrompt(prep) }],
   });
   return parseInterviewPlan(textOf(response), prep.panel);
+}
+
+/** `null` = the model said NONE (answer was complete). `""` = empty reply
+ *  (caller's verification treats it as malformed). A reply starting "None"
+ *  that ends in "?" is a real question, not NONE. */
+export function parseFollowUp(text: string): string | null {
+  const q = cleanQuestion(text.trim().replace(/^\*+|\*+$/g, ""));
+  if (!q) return "";
+  if (/^\**none\b/i.test(q) && !q.endsWith("?")) return null;
+  return q;
+}
+
+export async function generateInterviewFollowUp(
+  prep: InterviewPrepState,
+  panelistId: string,
+  question: string,
+  transcript: string,
+  upcomingQuestions: string[],
+): Promise<string | null> {
+  const response = await getClient().messages.create({
+    model: MODEL,
+    max_tokens: 200,
+    system: INTERVIEW_FOLLOWUP_SYSTEM_PROMPT,
+    messages: [
+      {
+        role: "user",
+        content: buildInterviewFollowUpPrompt(
+          prep,
+          panelistId,
+          question,
+          transcript,
+          upcomingQuestions,
+        ),
+      },
+    ],
+  });
+  return parseFollowUp(textOf(response));
 }
 
 function textOf(response: Anthropic.Message): string {

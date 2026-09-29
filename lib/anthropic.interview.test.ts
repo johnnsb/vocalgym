@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseInterviewPlan } from "./anthropic";
+import { parseFollowUp, parseInterviewPlan } from "./anthropic";
 import { emptyPanelist } from "./interviewPrep";
 
 const panel = [emptyPanelist("a"), emptyPanelist("b")];
@@ -33,5 +33,24 @@ describe("parseInterviewPlan", () => {
 
   it("ignores lines without a tag", () => {
     expect(parseInterviewPlan("Sure! Here you go.\nThanks.", panel)).toEqual([]);
+  });
+});
+
+describe("parseFollowUp", () => {
+  it("treats NONE variants as no follow-up", () => {
+    for (const t of ["NONE", "none.", '"NONE"', "**NONE**", "None — the answer was complete.", "  NONE\n"]) {
+      expect(parseFollowUp(t)).toBeNull();
+    }
+  });
+  it("does not mistake a real question starting with 'None' for NONE", () => {
+    expect(parseFollowUp("None of those numbers were yours — what did you personally own?"))
+      .toBe("None of those numbers were yours — what did you personally own?");
+  });
+  it("returns the cleaned question otherwise", () => {
+    expect(parseFollowUp('"What broke first when traffic doubled?"\nextra line'))
+      .toBe("What broke first when traffic doubled?");
+  });
+  it("returns an empty string for an empty reply", () => {
+    expect(parseFollowUp("   ")).toBe("");
   });
 });
