@@ -29,7 +29,7 @@ function attr(tag: string, name: string): string | null {
 }
 
 function relationships(relsXml: string): { id: string; type: string; target: string }[] {
-  return [...relsXml.matchAll(/<Relationship\b[^>]*>/g)].map((m) => ({
+  return Array.from(relsXml.matchAll(/<Relationship\b[^>]*>/g)).map((m) => ({
     id: attr(m[0], "Id") ?? "",
     type: attr(m[0], "Type") ?? "",
     target: attr(m[0], "Target") ?? "",
@@ -49,7 +49,7 @@ export function resolveTarget(fromPath: string, target: string): string {
 
 export function slideOrder(presentationXml: string, relsXml: string): string[] {
   const byId = new Map(relationships(relsXml).map((r) => [r.id, r.target]));
-  return [...presentationXml.matchAll(/<p:sldId\b[^>]*>/g)]
+  return Array.from(presentationXml.matchAll(/<p:sldId\b[^>]*>/g))
     .map((m) => attr(m[0], "r:id"))
     .map((rid) => (rid ? byId.get(rid) : undefined))
     .filter((t): t is string => Boolean(t))
@@ -62,7 +62,7 @@ export function notesPathFor(slideRelsXml: string, slidePath: string): string | 
 }
 
 function shapes(xml: string): string[] {
-  return [...xml.matchAll(/<p:sp\b[\s\S]*?<\/p:sp>/g)].map((m) => m[0]);
+  return Array.from(xml.matchAll(/<p:sp\b[\s\S]*?<\/p:sp>/g)).map((m) => m[0]);
 }
 
 function placeholderType(shape: string): string | null {
@@ -72,9 +72,9 @@ function placeholderType(shape: string): string | null {
 }
 
 function paragraphs(shape: string): string[] {
-  return [...shape.replace(/<a:p\b[^>]*\/>/g, "").matchAll(/<a:p\b[\s\S]*?<\/a:p>/g)]
+  return Array.from(shape.replace(/<a:p\b[^>]*\/>/g, "").matchAll(/<a:p\b[\s\S]*?<\/a:p>/g))
     .map((p) =>
-      decodeXmlEntities([...p[0].matchAll(/<a:t>([^<]*)<\/a:t>/g)].map((t) => t[1]).join("")).trim(),
+      decodeXmlEntities(Array.from(p[0].matchAll(/<a:t>([^<]*)<\/a:t>/g)).map((t) => t[1]).join("")).trim(),
     )
     .filter(Boolean);
 }
