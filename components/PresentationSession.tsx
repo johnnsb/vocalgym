@@ -2,7 +2,14 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import PresentationSetup from "./PresentationSetup";
-import PresentationRun, { type RunResult } from "./PresentationRun";
+import PresentationRun from "./PresentationRun";
+import {
+  applyRecording,
+  keepaliveSafe,
+  shouldAcceptRecording,
+  withTranscript,
+  type RunResult,
+} from "@/lib/presentationRun";
 import PresentationFeedbackSections from "./PresentationFeedbackSections";
 import PresentationHistory from "./PresentationHistory";
 import EffectiveScore from "./EffectiveScore";
@@ -29,9 +36,6 @@ import { Button, Callout, Card } from "@/components/ui";
 type Stage = "loading" | "setup" | "run" | "feedback-loading" | "feedback";
 
 const SAVE_DEBOUNCE_MS = 800;
-const EMPTY_RESULT: RunResult = {
-  transcript: "", durationSec: 0, nonverbal: null, signals: null, effective: null, slideTimings: null,
-};
 
 export default function PresentationSession() {
   const [stage, setStage] = useState<Stage>("loading");
@@ -50,6 +54,10 @@ export default function PresentationSession() {
   const lastSaved = useRef("");
   const latestPrep = useRef(prep);
   latestPrep.current = prep;
+  // Read inside async callbacks (a recording can finish after the run screen
+  // unmounted) so a late take never overwrites the result being reviewed.
+  const stageRef = useRef(stage);
+  stageRef.current = stage;
 
   useEffect(() => {
     loadPresentationPrep()
@@ -69,17 +77,20 @@ export default function PresentationSession() {
       .catch((err) => reportClientError(err, { area: "presentation:load-takes" }));
   }, []);
 
-  function persistIfChanged(state: PresentationPrep, keepalive = false) {
+  function persistIfChanged(state: PresentationPrep, leaving = false) {
     const snapshot = JSON.stringify(state);
     if (!shouldPersist({ loaded: loaded.current, snapshot, lastSaved: lastSaved.current })) return;
-    if (keepalive) lastSaved.current = snapshot;
+    // keepalive lets the PUT outlive the page, but browsers cap its body at
+    // 64KB — a larger setup falls back to a normal (best-effort) request.
+    // lastSaved only advances on success, so a dropped flush is retried.
+    const keepalive = leaving && keepaliveSafe(snapshot);
     savePresentationPrep(state, { keepalive })
       .then(() => {
         lastSaved.current = snapshot;
         setSaveWarning(null);
       })
       .catch((err) => {
-        if (keepalive) return;
+        if (leaving) return;
         reportClientError(err, { area: "presentation:save" });
         setSaveWarning("Couldn't save your setup. You can still practice; changes may not be there next time.");
       });
@@ -207,15 +218,16 @@ export default function PresentationSession() {
         <PresentationRun
           prep={prep}
           result={result}
-          onResult={(r) => {
-            setResult(r);
+          onRecording={(rec) => {
+            if (!shouldAcceptRecording(stageRef.current)) return;
+            setResult((prev) => applyRecording(prev, rec));
             track(EVENTS.presentationTakeCompleted, {
-              used_video: r.nonverbal != null,
-              duration_sec: r.durationSec,
+              used_video: rec.nonverbal != null,
+              duration_sec: Math.round(rec.durationSec),
               slide_count: prep.mode === "slides" ? prep.slides.length : 0,
             });
           }}
-          onTranscript={(t) => setResult((prev) => ({ ...(prev ?? EMPTY_RESULT), transcript: t }))}
+          onTranscript={(t) => setResult((prev) => withTranscript(prev, t))}
           onGetFeedback={getFeedback}
           onBack={() => setStage("setup")}
         />

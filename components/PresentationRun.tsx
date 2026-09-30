@@ -4,29 +4,15 @@ import { useRef, useState } from "react";
 import PracticeRecorder, { speechRecognitionSupported } from "./PracticeRecorder";
 import EffectiveScore from "./EffectiveScore";
 import { PRESENTATION_LIMITS, accumulateTimings } from "@/lib/presentationPrep";
-import { PRESENTATION_RUBRIC, computeEffective, computeSignals } from "@/lib/rubric";
-import type {
-  EffectiveResult,
-  NonverbalMetrics,
-  ObservableSignals,
-  PresentationPrep,
-  SlideTiming,
-} from "@/lib/types";
+import type { Recording, RunResult } from "@/lib/presentationRun";
+import type { PresentationPrep } from "@/lib/types";
 import { Button, Card, Textarea } from "@/components/ui";
-
-export interface RunResult {
-  transcript: string;
-  durationSec: number;
-  nonverbal: NonverbalMetrics | null;
-  signals: ObservableSignals | null;
-  effective: EffectiveResult | null;
-  slideTimings: SlideTiming[] | null;
-}
 
 interface Props {
   prep: PresentationPrep;
   result: RunResult | null;
-  onResult: (r: RunResult) => void;
+  /** A finished recording (scored by the parent via applyRecording). */
+  onRecording: (r: Recording) => void;
   onTranscript: (t: string) => void;
   onGetFeedback: () => void;
   onBack: () => void;
@@ -36,13 +22,16 @@ interface Props {
 // every slide change is timestamped, and when a recording stops the time on
 // each slide inside the recording window is computed (accumulateTimings).
 // Recording again replaces the previous take.
-export default function PresentationRun({ prep, result, onResult, onTranscript, onGetFeedback, onBack }: Props) {
+export default function PresentationRun({ prep, result, onRecording, onTranscript, onGetFeedback, onBack }: Props) {
   const slides = prep.mode === "slides" ? prep.slides : [];
   const [index, setIndex] = useState(0);
   const changes = useRef<{ slideId: string; at: number }[]>(
     slides.length ? [{ slideId: slides[0].id, at: Date.now() }] : [],
   );
   const speechSupported = speechRecognitionSupported();
+  // While recording, leaving the run screen would let the take land after
+  // the fact — so Get feedback / Edit setup wait until it stops.
+  const [recording, setRecording] = useState(false);
 
   function go(to: number) {
     const next = Math.min(Math.max(to, 0), slides.length - 1);
@@ -83,16 +72,15 @@ export default function PresentationRun({ prep, result, onResult, onTranscript, 
         <PracticeRecorder
           script={reference}
           contentLabel={prep.mode === "slides" ? "Current slide" : "Your notes"}
+          onRecordingChange={setRecording}
           onComplete={({ transcript, durationSec, nonverbal, audio }) => {
             const stopAt = Date.now();
             const startAt = stopAt - durationSec * 1000;
-            const sig = computeSignals({ nonverbal, audio, transcript, durationSec });
-            onResult({
+            onRecording({
               transcript,
-              durationSec: Math.round(durationSec),
+              durationSec,
               nonverbal,
-              signals: sig,
-              effective: computeEffective(PRESENTATION_RUBRIC, sig),
+              audio,
               slideTimings: slides.length ? accumulateTimings(changes.current, startAt, stopAt) : null,
             });
           }}
@@ -121,10 +109,10 @@ export default function PresentationRun({ prep, result, onResult, onTranscript, 
         {result?.effective && <EffectiveScore result={result.effective} signals={result.signals} compact />}
 
         <div className="flex flex-wrap gap-3">
-          <Button onClick={onGetFeedback} disabled={!result?.transcript.trim()} iconAfter="arrow-right">
+          <Button onClick={onGetFeedback} disabled={recording || !result?.transcript.trim()} iconAfter="arrow-right">
             Get feedback
           </Button>
-          <Button variant="ghost" onClick={onBack}>
+          <Button variant="ghost" onClick={onBack} disabled={recording}>
             Edit setup
           </Button>
         </div>
