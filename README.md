@@ -8,7 +8,8 @@ contact form; a human follows up with a tailored script). The first two lead
 straight to the rehearsal step. A quiet strip under those cards — *"Have an
 interview or presentation coming up?"* — leads to **`/prep`**, for practicing
 without a script: a **mock interview** built from what you know about your
-interviewers (see "Interview prep" below); presentation mode is coming soon.
+interviewers (see "Interview prep" below), or a **presentation run-through**
+from your speaker notes or a `.pptx` (see "Presentation mode" below).
 
 Then open **Practice**: record yourself running the script, review the
 speech-to-text transcript, and get coaching notes from Claude on what landed and
@@ -112,6 +113,10 @@ app/
   api/interview-questions/route.ts interview: POST panel -> { questions } (P<n>-tagged plan)
   api/interview-followup/route.ts  interview: POST answer -> { followUp } (a question or null)
   api/interview-feedback/route.ts  interview: POST panel+exchanges -> { feedback }
+  api/presentation-prep/route.ts   GET/PUT the session's presentation setup
+  api/presentation-takes/route.ts  GET run history / POST a run (after feedback)
+  api/presentation-takes/[id]/route.ts  DELETE one run (session-scoped)
+  api/presentation-feedback/route.ts  presentation: POST prep+transcript+timings+signals -> { feedback }
   api/state/route.ts               GET session state (script+rubric+attempts); PATCH to update
   api/attempts/route.ts            POST save an attempt; DELETE clear all
   api/attempts/[id]/route.ts       DELETE one attempt (session-scoped)
@@ -123,8 +128,9 @@ app/
   layout.tsx                       Root layout (+ SiteHeader nav, AnalyticsProvider)
   providers.tsx                    Client analytics bootstrap + route-change $pageview
   page.tsx                         Landing page (tagline + 3 path cards + /prep strip)
-  prep/page.tsx                    "Practice from your notes" hub (Interview; Presentation coming soon)
+  prep/page.tsx                    "Practice from your notes" hub (Interview, Presentation)
   prep/interview/page.tsx          Mock interview — InterviewSession
+  prep/presentation/page.tsx       Presentation run-through — PresentationSession
   generate/page.tsx                "Help me find the words" — GenerateFlow
   script/page.tsx                  "Bring your own words" — BringScriptFlow
   experts/page.tsx                 "Get expert help" — ExpertRequestForm (no AI)
@@ -160,6 +166,12 @@ components/
   PanelSetup.tsx                   Interviewer cards (1-4) + optional JD / background / key points
   InterviewRound.tsx               One question: attribution, progress, recorder, transcript
   InterviewFeedbackSections.tsx    Parses interview feedback markdown (own section set)
+  PresentationSession.tsx          Presentation orchestrator: setup -> run -> feedback, history alongside
+  PresentationSetup.tsx            Title, Notes/Slides tabs, notes upload, audience, time limit
+  SlideListEditor.tsx              .pptx import (inline replace-confirm) + editable slide rows
+  PresentationRun.tsx              Slide stepper + recorder + per-slide timing + live Effective score
+  PresentationFeedbackSections.tsx Parses presentation feedback markdown (own section set)
+  PresentationHistory.tsx          Past runs: date, duration, score; expand / delete
 lib/
   anthropic.ts                     Anthropic client + generateScript() / generatePracticeFeedback() / generateScriptLabel() / generateQuestions() / generateFollowUpQuestion() / generateQAFeedback()
   prompt.ts                        System prompts + prompt builders
@@ -185,7 +197,12 @@ lib/
   interviewRound.ts                Pure: recordAnswer / shouldPersist (interview data-safety rules)
   interviewPrepStore.ts            Client fetch wrapper over /api/interview-prep
   claudeRoute.ts                   Shared demo-cap + Anthropic-error responses (interview routes)
-  clientFetch.ts                   Client postJSON with demo-cap handling (interview UI)
+  clientFetch.ts                   Client postJSON with demo-cap handling (interview + presentation UI)
+  presentationPrep.ts              Pure: presentation limits, normalization, capSlides, accumulateTimings
+  presentationRun.ts               Pure: take state — applyRecording / withTranscript / keepaliveSafe
+  presentationPrep.server.ts       PresentationPrep / PresentationTake table access
+  presentationStore.ts             Client fetch wrapper over the presentation routes
+  pptxImport.ts                    .pptx -> slides (fflate + string XML helpers, browser-only use)
   *.test.ts                        Vitest unit tests (npm test)
 evals/                             Quality evals (npm run eval) — see "Quality evals" below
   dataset.ts                       14 test situations spanning all 7 tone presets
@@ -236,6 +253,8 @@ demo usage counter all live in Postgres. `prisma/schema.prisma` models:
 | `Session` | one row per browser (`vg_sid` cookie). `currentScript` + `rubric` are `Json?` blobs. `currentScript` carries an `id` + a 2–4 word `label` (see below). |
 | `Attempt` | FK → `Session` (cascade delete). Newest 50 per session are kept. `scriptId` / `scriptLabel` are denormalized from the current script so the history sidebar can group by script. |
 | `InterviewPrep` | 1:1 with `Session` (cascade delete). `panel` (1–4 interviewers) + `candidate` (JD / background / key points) `Json` blobs for `/prep/interview`. |
+| `PresentationPrep` | 1:1 with `Session` (cascade delete). `prep` `Json` (title, mode, notes, slides, audience, time limit) for `/prep/presentation`. |
+| `PresentationTake` | FK → `Session` (cascade). One presentation run: transcript, feedback, duration, Effective score, camera summary, per-slide timings. Newest 50 kept. Separate from `Attempt`, so `/practice` history never shows these. |
 | `ExpertRequest` | `/experts` form submissions. |
 | `UsageCounter` | single row (`id = 1`) for the demo cap. |
 
@@ -293,10 +312,11 @@ wrapper over `GET/PATCH /api/state` and `POST/DELETE /api/attempts`.
   source maps so stack traces resolve to the original TypeScript; without them
   the build still succeeds and capture still works, traces just stay minified.
   Only `next build` is affected — `npm run dev` never uploads.
-- **Structured logs** — all eight Claude routes (`generate-script`,
+- **Structured logs** — all nine Claude routes (`generate-script`,
   `practice-feedback`, the three `/grill` routes — `generate-questions`,
-  `followup-question`, `qa-feedback` — and the three interview routes —
-  `interview-questions`, `interview-followup`, `interview-feedback`) log `request received` → `anthropic call
+  `followup-question`, `qa-feedback` — the three interview routes —
+  `interview-questions`, `interview-followup`, `interview-feedback` — and
+  `presentation-feedback`) log `request received` → `anthropic call
   started` → `succeeded` / `failed` → `response sent`; `expert-request` and
   `script-label` log their own lifecycle; `state` / `attempts` log failures
   only. Every line is prefixed `[<route> <request-id>]` (see `lib/logger.ts`),
@@ -317,7 +337,11 @@ wrapper over `GET/PATCH /api/state` and `POST/DELETE /api/attempts`.
   `verifyInterviewFeedback` (5 sections, **Key points** only when key points
   were given → `feedback_incomplete`); a malformed interview follow-up is
   logged + reported but returned as `{ followUp: null }` so a round never
-  stalls.
+  stalls. `verifyPresentationFeedback` requires Overall / Coverage / Flow &
+  timing / Delivery / For your next run (Nonverbal only with camera) →
+  `feedback_incomplete`. Interview and presentation checks accept only bold or
+  `#`/`##` headings, so a `###` question subheading can't stand in for a
+  section.
 
 ## Product analytics & feedback (PostHog)
 
@@ -340,10 +364,16 @@ wrapper over `GET/PATCH /api/state` and `POST/DELETE /api/attempts`.
     question_count}`), `interview_round_completed` (`{answered, followups,
     ended_early, duration_sec}`), `interview_feedback_received` (no
     properties). The interview feedback smiley uses survey key
-    `interview_feedback_rating`.
+    `interview_feedback_rating`. For `/prep/presentation`:
+    `presentation_setup_saved` (`{mode, slide_count, has_audience,
+    has_time_limit}`), `presentation_take_completed` (`{used_video,
+    duration_sec, slide_count}`), `presentation_feedback_received`
+    (`{effective_score, effective_band, used_video}`); survey key
+    `presentation_feedback_rating`.
 - **What is never sent** — script text, transcript content, feedback text,
   the expert-form name/email/situation, and interviewer profiles / job
-  description / resume / key points. `track()`'s props are typed to
+  description / resume / key points, and presentation notes / slides /
+  audience. `track()`'s props are typed to
   primitives so content can't be passed by accident; autocapture, session
   recording and anonymous person profiles are all turned off.
 - **In-app feedback** — `components/FeedbackWidget.tsx`: a smiley-rating card
@@ -364,7 +394,7 @@ a single combined counter across `/api/generate-script`,
 (`/api/generate-questions`, `/api/followup-question`, `/api/qa-feedback`), and
 the three interview routes (`/api/interview-questions`,
 `/api/interview-followup`, `/api/interview-feedback` — a full round is 3–7
-counted calls) —
+counted calls), and `/api/presentation-feedback` (one per run) —
 **not** per-user rate limiting, and under concurrency it can overshoot by a few.
 
 - **Set the limit** — `DEMO_REQUEST_LIMIT` in `.env.local` (e.g. `100`). Blank or
@@ -518,6 +548,41 @@ toggle works but its signal is unused, and there's no rubric/Effective score.
 Interviewer profiles are third-party personal data: stored only on your
 session's row, sent to Anthropic as prompt context, never to PostHog, and not
 included in server logs.
+
+## Presentation mode (`/prep/presentation`)
+
+Rehearse a talk from your **speaker notes or slides**, as one continuous
+run-through, and see which points landed.
+
+1. **Setup** (`PresentationSetup.tsx`) — optional title; **Notes** (paste, or
+   upload .txt/.md/.pdf) or **Slides** (import a `.pptx` — parsed in your
+   browser, the file is never uploaded — or add slides by hand; each slide's
+   title + notes stay editable). Both are kept; the active tab is what gets
+   used. Optional *"Who's in the room?"* and a time limit. Auto-saved to
+   `PresentationPrep` (same load guard + save-on-leave as interviews).
+   `.pptx` import follows the deck's real slide order, decodes entities,
+   drops slide-number boxes, keeps titles for slides without notes, and trims
+   to 40 slides / 20,000 characters of notes (later slides first). Old `.ppt`
+   files are rejected with "Save it as .pptx".
+2. **Run-through** (`PresentationRun.tsx`) — one take with `PracticeRecorder`
+   (camera optional). With slides, step Prev/Next while you talk; the time on
+   each slide inside the recording is captured. When you stop, the
+   **Effective** score appears (fixed `PRESENTATION_RUBRIC`: Clear 30 ·
+   Confident 25 · Connected 25 · Smooth 20 — not a tone, so the `/script` and
+   `/generate` dropdowns are unchanged). Editing the transcript rescores; Get
+   feedback waits until recording stops.
+3. **Feedback** — `POST /api/presentation-feedback` → **Overall** /
+   **Coverage** (each slide, or up to ~8 talking points from your notes:
+   covered, partly, or missed) / **Flow & timing** (pacing per slide, total vs.
+   your limit) / **Delivery** / **Nonverbal** (camera only) / **For your next
+   run**, shaped by your audience description.
+4. **History** — each run with feedback is saved to `PresentationTake`
+   (newest 50) and listed alongside: date, duration, Effective score; expand
+   for the feedback, delete to remove.
+
+v1 scope: no audience Q&A after the talk, no drill-one-slide mode, no numeric
+coverage score. Your notes, slides and transcripts are sent to Anthropic only
+as prompt context — never to PostHog, never previewed in server logs.
 
 ## Quality evals
 
