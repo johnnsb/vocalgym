@@ -160,7 +160,7 @@ model PresentationTake {
 | audience | 2,000 chars |
 | timeLimitMin | integer 1–120, else `null` |
 | mode | `"notes"` \| `"slides"`, default `"notes"` |
-| transcript (take/feedback) | 12,000 chars |
+| transcript (take/feedback) | 60,000 chars (~1 hour of speech; raised from 12,000 after final review) |
 | feedback (take) | 40,000 chars |
 | durationSec | integer 0–10,800 |
 | slideTimings | ≤40 entries, `seconds` 0–10,800, unknown slide ids dropped |
@@ -201,7 +201,7 @@ PostHog, never previewed in server logs.
 `recordRequest()` demo cap (429 `demo_limit_reached` via `lib/claudeRoute.ts`),
 `MODEL`, `max_tokens` 3000. Validation: prep via `normalizePresentationPrep`;
 400 if the active mode has no content or the transcript is empty; transcript
-≤12,000; timings via `normalizeSlideTimings`. The route recomputes the
+≤60,000; timings via `normalizeSlideTimings`. The route recomputes the
 Effective result from `coerceSignals(signals)` + `PRESENTATION_RUBRIC` for the
 prompt (as `practice-feedback` does).
 

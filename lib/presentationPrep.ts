@@ -21,7 +21,8 @@ export const PRESENTATION_LIMITS = {
   audience: 2_000,
   timeLimitMinMin: 1,
   timeLimitMinMax: 120,
-  transcript: 12_000,
+  // ~60 min of speech at ~150 wpm — a real rehearsal must not be refused.
+  transcript: 60_000,
   feedback: 40_000,
   durationSecMax: 10_800,
   id: 100,

@@ -71,8 +71,17 @@ function placeholderType(shape: string): string | null {
   return attr(ph[0], "type") ?? "body";
 }
 
+// A line break inside a paragraph (Shift+Enter) is <a:br/> or <a:br>…</a:br>;
+// turn it into a newline run so words on either side don't run together.
+const LINE_BREAK = /<a:br\b[^>]*\/>|<a:br\b[^>]*>[\s\S]*?<\/a:br>/g;
+
 function paragraphs(shape: string): string[] {
-  return Array.from(shape.replace(/<a:p\b[^>]*\/>/g, "").matchAll(/<a:p\b[\s\S]*?<\/a:p>/g))
+  return Array.from(
+    shape
+      .replace(/<a:p\b[^>]*\/>/g, "")
+      .replace(LINE_BREAK, "<a:t>\n</a:t>")
+      .matchAll(/<a:p\b[\s\S]*?<\/a:p>/g),
+  )
     .map((p) =>
       decodeXmlEntities(Array.from(p[0].matchAll(/<a:t>([^<]*)<\/a:t>/g)).map((t) => t[1]).join("")).trim(),
     )
@@ -81,7 +90,7 @@ function paragraphs(shape: string): string[] {
 
 export function slideTitle(slideXml: string): string {
   const title = shapes(slideXml).find((s) => /^(title|ctrTitle)$/.test(placeholderType(s) ?? ""));
-  return title ? paragraphs(title).join(" ") : "";
+  return title ? paragraphs(title).join(" ").replace(/\s*\n\s*/g, " ") : "";
 }
 
 const NON_NOTE_PLACEHOLDERS = new Set(["sldNum", "sldImg", "hdr", "ftr", "dt"]);

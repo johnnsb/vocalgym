@@ -141,9 +141,9 @@ describe("normalizeTakeInput", () => {
     expect(normalizeTakeInput(null)).toBeNull();
   });
   it("clamps and truncates", () => {
-    const t = normalizeTakeInput({ ...good, durationSec: 1e9, transcript: "x".repeat(20_000), feedback: "y".repeat(50_000), talkTitle: "t".repeat(500) })!;
+    const t = normalizeTakeInput({ ...good, durationSec: 1e9, transcript: "x".repeat(80_000), feedback: "y".repeat(50_000), talkTitle: "t".repeat(500) })!;
     expect(t.durationSec).toBe(10_800);
-    expect(t.transcript).toHaveLength(12_000);
+    expect(t.transcript).toHaveLength(60_000);
     expect(t.feedback).toHaveLength(40_000);
     expect(t.talkTitle).toHaveLength(120);
   });
@@ -189,5 +189,14 @@ describe("formatDuration", () => {
     expect(formatDuration(0)).toBe("0:00");
     expect(formatDuration(160)).toBe("2:40");
     expect(formatDuration(3_725)).toBe("62:05");
+  });
+});
+
+describe("transcript limit for real-length talks", () => {
+  it("keeps a ~25-minute transcript (about 20,000 chars) intact", () => {
+    const talk = "word ".repeat(4_000); // 20,000 chars ≈ 25 min at 150 wpm
+    const t = normalizeTakeInput({ transcript: talk, feedback: "**Overall** ok" })!;
+    expect(t.transcript).toHaveLength(20_000);
+    expect(PRESENTATION_LIMITS.transcript).toBeGreaterThanOrEqual(60_000);
   });
 });

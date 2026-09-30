@@ -124,3 +124,14 @@ describe("extractSlides", () => {
     await expect(extractSlides(new File(["not a zip"], "deck.pptx"))).rejects.toThrow("Couldn't read that PowerPoint file.");
   });
 });
+
+describe("line breaks inside a paragraph (<a:br/>)", () => {
+  const brShape = (t: string) =>
+    `<p:sp><p:nvSpPr><p:nvPr><p:ph type="${t}"/></p:nvPr></p:nvSpPr><p:txBody><a:p><a:r><a:t>Q3 Results</a:t></a:r><a:br><a:rPr lang="en-US"/></a:br><a:r><a:t>and Outlook</a:t></a:r><a:br/><a:r><a:t>2026</a:t></a:r></a:p></p:txBody></p:sp>`;
+  it("keeps words apart in titles", () => {
+    expect(slideTitle(`<p:sld>${brShape("title")}</p:sld>`)).toBe("Q3 Results and Outlook 2026");
+  });
+  it("keeps the line break in notes", () => {
+    expect(notesText(`<p:notes>${brShape("body")}</p:notes>`)).toBe("Q3 Results\nand Outlook\n2026");
+  });
+});
