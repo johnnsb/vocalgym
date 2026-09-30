@@ -34,6 +34,8 @@ model Session {
   attempts Attempt[]
 
   interviewPrep InterviewPrep?
+  presentationPrep  PresentationPrep?
+  presentationTakes PresentationTake[]
 }
 
 /// One rehearsal take plus the coaching it got back. Newest 50 per session are
@@ -96,4 +98,33 @@ model InterviewPrep {
   panel     Json
   /// InterviewCandidate (lib/types.ts).
   candidate Json
+}
+
+/// Presentation-mode setup for /prep/presentation. One per session.
+model PresentationPrep {
+  id        String   @id @default(cuid())
+  sessionId String   @unique
+  session   Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  /// PresentationPrep (lib/types.ts).
+  prep      Json
+}
+
+/// One presentation run-through + its feedback. Newest 50 per session kept.
+/// Deliberately separate from Attempt so /practice history never shows these.
+model PresentationTake {
+  id           String   @id @default(cuid())
+  sessionId    String
+  session      Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  createdAt    DateTime @default(now())
+  talkTitle    String   @default("")
+  durationSec  Int      @default(0)
+  transcript   String
+  feedback     String
+  effective    Json?
+  nonverbal    Json?
+  slideTimings Json?
+
+  @@index([sessionId, createdAt])
 }
