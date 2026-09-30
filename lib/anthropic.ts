@@ -18,6 +18,8 @@ import {
   buildInterviewFollowUpPrompt,
   INTERVIEW_FEEDBACK_SYSTEM_PROMPT,
   buildInterviewFeedbackPrompt,
+  PRESENTATION_FEEDBACK_SYSTEM_PROMPT,
+  buildPresentationFeedbackPrompt,
   type FeedbackPromptExtras,
 } from "./prompt";
 import type {
@@ -309,6 +311,18 @@ export async function generateInterviewFeedback(
     messages: [
       { role: "user", content: buildInterviewFeedbackPrompt(prep, exchanges) },
     ],
+  });
+  return textOf(response);
+}
+
+export async function generatePresentationFeedback(
+  input: Parameters<typeof buildPresentationFeedbackPrompt>[0],
+): Promise<string> {
+  const response = await getClient().messages.create({
+    model: MODEL,
+    max_tokens: 3000,
+    system: PRESENTATION_FEEDBACK_SYSTEM_PROMPT,
+    messages: [{ role: "user", content: buildPresentationFeedbackPrompt(input) }],
   });
   return textOf(response);
 }
