@@ -93,6 +93,9 @@ export const EVENTS = {
   interviewRoundStarted: "interview_round_started",
   interviewRoundCompleted: "interview_round_completed",
   interviewFeedbackReceived: "interview_feedback_received",
+  presentationSetupSaved: "presentation_setup_saved",
+  presentationTakeCompleted: "presentation_take_completed",
+  presentationFeedbackReceived: "presentation_feedback_received",
   surveySent: "survey sent",
   surveyDismissed: "survey dismissed",
 } as const;
