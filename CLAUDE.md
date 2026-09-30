@@ -33,6 +33,11 @@ signals — rolled up into a single "Effective" score.
   logic only (`lib/**/*.test.ts`: interview normalization, prompt builders,
   parsers, output verifiers). UI flows are verified manually in the browser.
   Pinned to v3 because v5 peer-requires `@types/node` ≥22 and the repo is on 20.
+- fflate — client-side unzip for `.pptx` import in presentation mode;
+  dynamically imported by `SlideListEditor` (via `lib/pptxImport.ts`) only
+  when a deck is picked. Note: tsconfig has no `target`, so spreading
+  iterators (`[...map.entries()]`, `[...str.matchAll()]`) fails `tsc` —
+  use `Array.from(...)`.
 - Sentry (@sentry/nextjs v10) for error tracking — gated on
   NEXT_PUBLIC_SENTRY_DSN (blank = fully disabled, zero client-bundle cost;
   `next.config.mjs` only wires in `withSentryConfig` when the DSN is set). A DSN
@@ -81,8 +86,8 @@ signals — rolled up into a single "Effective" score.
   - `/prep` — "Practice from your notes" hub, reached ONLY from a quiet strip
     under the three path cards ("Have an interview or presentation coming
     up?") — deliberately kept out of the main three-path flow and the nav.
-    Interview card → `/prep/interview`; Presentation card is a disabled
-    "Coming soon".
+    Interview card → `/prep/interview`; Presentation card →
+    `/prep/presentation`.
   Both `/script` and `/generate` also render the effectiveness rubric picker.
 - `/prep/interview` (`InterviewSession`) — mock interview with no script. State
   machine `loading → setup → planning → round ⇄ followup-loading →
@@ -146,6 +151,48 @@ signals — rolled up into a single "Effective" score.
     intact), camera toggle works but its signal is unused, no rubric/
     Effective score. Interviewer profiles are third-party personal data —
     never sent to PostHog and not previewed in server logs.
+- `/prep/presentation` (`PresentationSession`) — rehearse a talk from notes
+  or slides as ONE continuous take. Stages `loading → setup → run →
+  feedback-loading → feedback`, with `PresentationHistory` alongside.
+  - Setup (`PresentationSetup` + `SlideListEditor`): optional title; Notes /
+    Slides tabs (both kept — `mode` picks the active one); notes via paste or
+    .txt/.md/.pdf upload; slides via `.pptx` import (`lib/pptxImport.ts`:
+    order from `ppt/presentation.xml` `sldIdLst` — never file names; title =
+    `title`/`ctrTitle` placeholder; notes = notes-slide text minus
+    sldNum/sldImg/hdr/ftr/dt; entities decoded; ≤40 slides, ≤20,000 notes
+    chars with later slides cut first; legacy `.ppt` rejected) or by hand;
+    re-import asks inline. Optional audience + time limit (1–120 min).
+    Persisted in `PresentationPrep` via `GET/PUT /api/presentation-prep` with
+    the same load guard / debounce / leave-flush as interviews (`shouldPersist`
+    keyed on a successful load; keepalive only under ~60KB — `keepaliveSafe`).
+  - Run (`PresentationRun`): `PracticeRecorder` (camera optional) + slide
+    stepper. Every slide change is timestamped; on stop,
+    `accumulateTimings(changes, stopAt - durationSec*1000, stopAt)` gives
+    seconds per slide inside the recording window. `lib/presentationRun.ts`
+    (pure, tested) keeps the take's audio/camera/duration so the Effective
+    score is recomputed whenever the transcript changes (`withTranscript`), a
+    recording with no captured speech keeps typed text (`applyRecording`), and
+    a recording that finishes after leaving the run screen is ignored
+    (`shouldAcceptRecording`); Get feedback / Edit setup are disabled while
+    recording (`PracticeRecorder`'s optional `onRecordingChange`).
+  - Scoring: fixed `PRESENTATION_RUBRIC` (Clear 30 · Confident 25 · Connected
+    25 · Smooth 20) in `lib/rubric.ts` — deliberately NOT a `Tone`, so the
+    `/script` and `/generate` tone dropdowns are unchanged. No rubric picker.
+  - Feedback: `POST /api/presentation-feedback` recomputes the Effective
+    result server-side, builds `buildPresentationFeedbackPrompt` (slides tagged
+    `S1..Sn` or plain notes, audience, time limit, per-slide timings, total,
+    rubric block, camera block, transcript) and checks
+    `verifyPresentationFeedback`: Overall / Coverage (per slide, or up to ~8
+    talking points from notes: covered | partly | missed) / Flow & timing /
+    Delivery / For your next run required; Nonverbal only with camera → 502
+    `feedback_incomplete`. Rendered by `PresentationFeedbackSections`.
+  - History: a take is saved (`POST /api/presentation-takes`) only after
+    feedback succeeds; newest 50/session; expand + delete
+    (`DELETE /api/presentation-takes/[id]`, session-scoped). Stored in
+    `PresentationTake`, NEVER `Attempt`, so `/practice` history is unaffected.
+  - v1 scope: no audience Q&A, no drill-one-slide mode, no numeric coverage
+    score, no slide images. Notes/slides/audience/transcripts are never sent
+    to PostHog or previewed in logs.
 - `/practice` — practice session: record audio (+ optional video), transcribe,
   submit to POST /api/practice-feedback for Claude-generated coaching notes.
   Camera frames never leave the browser — only the derived metric summary and
@@ -184,7 +231,9 @@ signals — rolled up into a single "Effective" score.
   - Models (`prisma/schema.prisma`): `Session` (1 per browser; `currentScript`
     and `rubric` are `Json?` blobs — StoredScript / RubricSelection shapes),
     `Attempt` (FK → Session, cascade; newest 50/session kept), `InterviewPrep`
-    (1:1 with Session, cascade; `panel` / `candidate` Json), `ExpertRequest`,
+    (1:1 with Session, cascade; `panel` / `candidate` Json), `PresentationPrep`
+    (1:1, cascade; `prep` Json), `PresentationTake` (cascade; newest 50/session),
+    `ExpertRequest`,
     `UsageCounter` (single row id=1). There is no scripts table — the
     `currentScript` blob carries `id` + `label` (see below), and `Attempt` has
     denormalized `scriptId` / `scriptLabel` columns so history can be grouped.
@@ -206,7 +255,9 @@ signals — rolled up into a single "Effective" score.
     `DELETE /api/attempts/[id]` (one, session-scoped so a foreign id is a
     no-op), `POST /api/script-label` (Haiku, best-effort → `{ label }`, not
     counted against the demo cap), `GET/PUT /api/interview-prep` (the
-    session's interview panel setup; normalized on write and read).
+    session's interview panel setup; normalized on write and read),
+    `GET/PUT /api/presentation-prep`, `GET/POST /api/presentation-takes`,
+    `DELETE /api/presentation-takes/[id]`.
   - `PastAttempts.tsx` groups the history by `scriptId` — a header per script
     (its `scriptLabel`, falling back to the situation text), groups ordered by
     most-recently-practiced, attempts within a group newest-first, each row
@@ -223,7 +274,8 @@ signals — rolled up into a single "Effective" score.
   /api/practice-feedback, the three `/grill` routes
   (/api/generate-questions, /api/followup-question, /api/qa-feedback), and the
   three interview routes (/api/interview-questions, /api/interview-followup,
-  /api/interview-feedback; a full round = 3–7 counted calls) — shares
+  /api/interview-feedback; a full round = 3–7 counted calls), and
+  /api/presentation-feedback (1 call per take) — shares
   the `UsageCounter` row (env: DEMO_REQUEST_LIMIT) via `lib/usageCounter.ts`
   (`recordRequest` does an atomic `upsert … increment`). Durable + roughly
   concurrency-safe now. Check it at GET /api/usage-count (gate with
@@ -236,8 +288,9 @@ signals — rolled up into a single "Effective" score.
     `lib/clientErrors.ts` (dynamic-imports the SDK, dead-code-eliminated with no
     DSN). API routes call `Sentry.captureException` / `captureMessage` in their
     catch + verification paths, tagged with `route` + request id.
-  - All eight Claude routes (`generate-script`, `practice-feedback`, the
-    three `/grill` routes, and the three interview routes) emit full-lifecycle structured console logs via
+  - All nine Claude routes (`generate-script`, `practice-feedback`, the
+    three `/grill` routes, the three interview routes, and
+    `presentation-feedback`) emit full-lifecycle structured console logs via
     `lib/logger.ts` (`[<route> <request-id>]` — request received / anthropic
     call started / succeeded|failed / response sent / blocked by cap /
     verification failed). `expert-request` and `script-label` log their own
@@ -251,6 +304,8 @@ signals — rolled up into a single "Effective" score.
     cut-off reply fails here instead of shipping mid-sentence). A failure is logged + sent to Sentry and the route
     returns a graceful 502 (`code: feedback_incomplete` / `script_malformed` /
     `questions_malformed` / `followup_malformed`) rather than partial content.
+    Interview and presentation feedback checks only accept bold or `#`/`##`
+    headings (`SECTION_HEAD`), so a `###` subheading can't satisfy a section.
 - Product analytics (PostHog):
   - `lib/analytics.ts` — the only place `posthog-js` is touched. Lazy
     `import()`, no-op unless NEXT_PUBLIC_POSTHOG_KEY is set. `initAnalytics()`,
@@ -273,7 +328,12 @@ signals — rolled up into a single "Effective" score.
     ({panel_size, has_jd, has_background, key_points_count} — fired on Start,
     not per auto-save), `interview_round_started` ({panel_size,
     question_count}), `interview_round_completed` ({answered, followups,
-    ended_early, duration_sec}), `interview_feedback_received` (no props).
+    ended_early, duration_sec}), `interview_feedback_received` (no props),
+    `presentation_setup_saved` ({mode, slide_count, has_audience,
+    has_time_limit} — fired on every Start/Run it again),
+    `presentation_take_completed` ({used_video, duration_sec, slide_count}),
+    `presentation_feedback_received` ({effective_score, effective_band,
+    used_video}).
     Verified end-to-end: seeded secret
     script/PII text never appeared in any outgoing PostHog request.
   - `components/FeedbackWidget.tsx` — one dismissible smiley-rating pattern used
@@ -286,7 +346,8 @@ signals — rolled up into a single "Effective" score.
     `ANALYTICS_ENABLED` (renders nothing without a key); remembers done/dismissed
     per browser in localStorage (`vocalgym:survey:<key>` — keys
     `script_generated_rating`, `practice_feedback_rating`,
-    `general_feedback_rating`, `interview_feedback_rating`). Dashboard-created PostHog surveys also render
+    `general_feedback_rating`, `interview_feedback_rating`,
+    `presentation_feedback_rating`). Dashboard-created PostHog surveys also render
     since `disable_surveys` is left default.
 
 ## Site-wide password gate
@@ -473,9 +534,13 @@ signals — rolled up into a single "Effective" score.
   needs SENTRY_ORG / SENTRY_PROJECT / SENTRY_AUTH_TOKEN provided (in `.env.local`
   for a local prod build, or as host/CI secrets) to start uploading on
   `next build`.
-- Presentation mode (`/prep` card is "Coming soon"): speaker notes /
-  talking points as context → deliver the talk → feedback on coverage of each
-  point + delivery. Closer in shape to `/practice` than to the interview flow.
+- Presentation follow-ups: audience Q&A after the talk, a drill-one-slide
+  mode, and a numeric coverage score (the content-scored-qualities work in
+  "Open questions"). Known v1 minors: history delete has no confirm/undo;
+  uploaded notes cap at 8,000 chars (typed: 12,000); a11y gaps (history
+  toggle aria-expanded, slide counter aria-live, Tabs roles); dev-only
+  StrictMode double-load can overwrite a keystroke typed within ms of load
+  (also in InterviewSession).
 - Interview rounds (`/prep/interview`) aren't persisted — no round history,
   no resume after refresh; the camera signal is unused there too.
 - `/grill` v0 is a prototype, not a finished feature: no link from `/` or

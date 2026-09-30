@@ -365,3 +365,14 @@ export function formatRubricForPrompt(
   );
   return lines.filter(Boolean).join("\n");
 }
+
+/**
+ * Fixed rubric for presentation mode (app/prep/presentation). Deliberately NOT
+ * a Tone — adding one would change the /script and /generate tone dropdowns.
+ * Leans on pace, fillers, voice steadiness and (with camera) eye contact.
+ */
+export const PRESENTATION_RUBRIC: RubricSelection = {
+  attributes: ["clear", "confident", "connected", "smooth"],
+  weights: { clear: 30, confident: 25, connected: 25, smooth: 20 },
+  custom: false,
+};

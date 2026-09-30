@@ -197,3 +197,25 @@ export function verifyInterviewFeedback(
   const missing = required.filter((s) => !s.re.test(text)).map((s) => s.label);
   return { ok: missing.length === 0, missing };
 }
+
+const PRESENTATION_FEEDBACK_SECTIONS: { label: string; re: RegExp }[] = [
+  ["Overall", String.raw`overall\b`],
+  ["Coverage", String.raw`coverage\b`],
+  ["Flow & timing", String.raw`flow\s*(?:&|and)\s*timing\b`],
+  ["Delivery", String.raw`delivery\b`],
+  ["For your next run", String.raw`(?:for\s+your\s+)?next\s+run\b`],
+].map(([label, body]) => ({ label, re: new RegExp(SECTION_HEAD + body, "i") }));
+
+/** Required presentation-feedback sections (Nonverbal is optional — camera
+ *  only). Section headings only: bold or #/## (see SECTION_HEAD). */
+export function verifyPresentationFeedback(text: unknown): FeedbackCheck {
+  if (typeof text !== "string" || text.trim().length < 60) {
+    return {
+      ok: false,
+      missing: PRESENTATION_FEEDBACK_SECTIONS.map((s) => s.label),
+      reason: "empty-or-too-short",
+    };
+  }
+  const missing = PRESENTATION_FEEDBACK_SECTIONS.filter((s) => !s.re.test(text)).map((s) => s.label);
+  return { ok: missing.length === 0, missing };
+}

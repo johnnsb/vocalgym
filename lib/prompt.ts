@@ -5,11 +5,14 @@ import type {
   InterviewPrepState,
   NonverbalMetrics,
   ObservableSignals,
+  PresentationPrep,
   QAExchange,
+  SlideTiming,
   Tone,
 } from "./types";
 import { formatNonverbalForPrompt } from "./nonverbal";
 import { formatRubricForPrompt } from "./rubric";
+import { formatDuration } from "./presentationPrep";
 
 /**
  * Bump this whenever SYSTEM_PROMPT, FEEDBACK_SYSTEM_PROMPT, or the prompt
@@ -437,5 +440,80 @@ export function buildInterviewFeedbackPrompt(
     lines.push("</exchange>", "");
   });
   lines.push("Give the feedback.");
+  return lines.join("\n");
+}
+
+// --- Presentation mode (app/prep/presentation) -------------------------------
+
+export const PRESENTATION_FEEDBACK_SYSTEM_PROMPT = `You are a presentation coach reviewing one rehearsal run-through of a talk. The speaker had speaker notes or slides (given below) — NOT a word-for-word script — and delivered the whole talk out loud in one take. It was captured by speech-to-text; ignore transcription noise and never comment on it.
+
+Judge two things: whether they got their material across (coverage, order, timing), and how they delivered it. Paraphrasing the notes is fine and expected — "covered" means the point landed, not that the wording matched.
+
+Format the response in Markdown with these sections, in this order, using exactly these bold headings:
+- **Overall** — two or three sentences on how the run went. State the Effective score if one is given.
+- **Coverage** — if slides are given (tagged S1, S2, …): one bullet per slide, "S<n> <title> — covered | partly | missed: <one short reason>". If only notes are given: identify up to 8 main talking points from the notes and give one bullet each with the same verdicts. Quote a few words from the transcript where it helps.
+- **Flow & timing** — 2 to 3 bullets: order and transitions, time per slide when timings are given (call out slides that ran long or got rushed), and total length against the time limit when one is given.
+- **Delivery** — 2 to 3 bullets on pace, filler words, and energy; name the highest-weighted quality that scored lowest when a rubric is given.
+- **Nonverbal** — ONLY if a <camera> block is present: 1 to 2 bullets. Omit this section entirely otherwise.
+- **For your next run** — 2 to 3 concrete, prioritized changes.
+
+When a rubric block refers to "For your next take", apply that to **For your next run**. If an <audience> is described, say what that audience will care about where it matters ("the CFO will want the cost figure before slide 5"). Be direct but supportive. No preamble before the feedback.`;
+
+export function buildPresentationFeedbackPrompt(input: {
+  prep: PresentationPrep;
+  transcript: string;
+  durationSec: number;
+  slideTimings: SlideTiming[];
+  nonverbal: NonverbalMetrics | null;
+  effective: EffectiveResult | null;
+  signals: ObservableSignals | null;
+}): string {
+  const { prep } = input;
+  const titleAttr = prep.title.trim().replace(/"/g, "'");
+  const lines: string[] = [`<talk title="${titleAttr}">`];
+  if (prep.mode === "slides") {
+    prep.slides.forEach((s, i) => {
+      lines.push(`<slide tag="S${i + 1}">`, `Title: ${s.title.trim() || "(untitled)"}`);
+      if (s.notes.trim()) lines.push("<notes>", s.notes.trim(), "</notes>");
+      else lines.push("(no notes)");
+      lines.push("</slide>");
+    });
+  } else {
+    lines.push("<notes>", prep.notes.trim(), "</notes>");
+  }
+  lines.push("</talk>");
+
+  if (prep.audience.trim()) lines.push("", "<audience>", prep.audience.trim(), "</audience>");
+  if (prep.timeLimitMin) lines.push("", `<time_limit minutes="${prep.timeLimitMin}" />`);
+
+  lines.push("", "<slide_timings_summary>", `Total: ${formatDuration(input.durationSec)}`, "</slide_timings_summary>");
+  if (prep.mode === "slides" && input.slideTimings.length) {
+    const byId = new Map(input.slideTimings.map((t) => [t.slideId, t.seconds]));
+    const rows = prep.slides
+      .map((s, i) =>
+        byId.has(s.id)
+          ? `S${i + 1} ${s.title.trim() || "(untitled)"}: ${formatDuration(byId.get(s.id) as number)}`
+          : null,
+      )
+      .filter(Boolean);
+    if (rows.length) lines.push("", "<slide_timings>", ...(rows as string[]), "</slide_timings>");
+  }
+
+  if (input.effective && input.signals) {
+    lines.push("", formatRubricForPrompt(input.effective, input.signals));
+  }
+  if (input.nonverbal) {
+    lines.push("", "<camera>", formatNonverbalForPrompt(input.nonverbal), "</camera>");
+  }
+
+  lines.push(
+    "",
+    "<transcript>",
+    "(Spoken out loud and transcribed by speech-to-text — expect some transcription noise.)",
+    input.transcript.trim(),
+    "</transcript>",
+    "",
+    "Give the feedback.",
+  );
   return lines.join("\n");
 }

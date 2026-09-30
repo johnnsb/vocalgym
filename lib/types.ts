@@ -314,3 +314,60 @@ export interface InterviewFeedbackRequest extends InterviewPrepState {
 export interface InterviewFeedbackResponse {
   feedback: string;
 }
+
+/**
+ * Presentation mode (app/prep/presentation) — rehearse a talk from speaker
+ * notes or an imported .pptx as one continuous take. Scored with the shared
+ * Effective score (PRESENTATION_RUBRIC in lib/rubric.ts); takes are stored in
+ * their own table, never as practice Attempts.
+ */
+export interface PresentationSlide {
+  id: string;
+  title: string;
+  notes: string;
+}
+
+export type PresentationMode = "notes" | "slides";
+
+export interface PresentationPrep {
+  title: string;
+  mode: PresentationMode;
+  notes: string;
+  slides: PresentationSlide[];
+  audience: string;
+  timeLimitMin: number | null;
+}
+
+export interface SlideTiming {
+  slideId: string;
+  seconds: number;
+}
+
+export interface PresentationTakeInput {
+  talkTitle: string;
+  durationSec: number;
+  transcript: string;
+  feedback: string;
+  effective: EffectiveResult | null;
+  nonverbal: NonverbalMetrics | null;
+  slideTimings: SlideTiming[] | null;
+}
+
+export interface PresentationTake extends PresentationTakeInput {
+  id: string;
+  /** epoch ms, like PracticeAttempt.createdAt */
+  createdAt: number;
+}
+
+export interface PresentationFeedbackRequest {
+  prep: PresentationPrep;
+  transcript: string;
+  durationSec: number;
+  slideTimings: SlideTiming[] | null;
+  nonverbal: NonverbalMetrics | null;
+  signals: ObservableSignals | null;
+}
+
+export interface PresentationFeedbackResponse {
+  feedback: string;
+}

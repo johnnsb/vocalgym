@@ -58,6 +58,9 @@ interface Props {
   /** Label above the `script` panel — "Script" by default; pass e.g. "Question"
    *  when reusing this recorder outside the script-rehearsal flow. */
   contentLabel?: string;
+  /** Optional: told when recording starts/stops, so a parent can disable
+   *  actions (e.g. "Get feedback") mid-take. */
+  onRecordingChange?: (recording: boolean) => void;
   /** Fires each time a recording stops, with whatever was captured. */
   onComplete: (result: {
     transcript: string;
@@ -114,6 +117,7 @@ export default function PracticeRecorder({
   disabled,
   script,
   contentLabel = "Script",
+  onRecordingChange,
   onComplete,
 }: Props) {
   const [status, setStatus] = useState<Status>("idle");
@@ -403,6 +407,12 @@ export default function PracticeRecorder({
   }, [cleanupTimer, stopSampling, stopTracks]);
 
   const recording = status === "recording";
+
+  const onRecordingChangeRef = useRef(onRecordingChange);
+  onRecordingChangeRef.current = onRecordingChange;
+  useEffect(() => {
+    onRecordingChangeRef.current?.(recording);
+  }, [recording]);
 
   return (
     <div

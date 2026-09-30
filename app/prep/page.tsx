@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Badge, Card, Icon } from "@/components/ui";
+import { Card, Icon } from "@/components/ui";
 
 export const metadata: Metadata = {
   title: "Interviews & presentations · VocalGym",
@@ -43,16 +43,17 @@ export default function PrepHubPage() {
           </span>
         </Card>
 
-        <Card tone="sunken" className="flex flex-col" aria-disabled="true">
-          <span className="flex items-center gap-2 text-label font-semibold text-text-muted">
+        <Card as={Link} href="/prep/presentation" interactive className="group flex flex-col no-underline">
+          <span className="flex items-center gap-2 text-label font-semibold text-text-primary">
             <Icon name="presentation" size={16} />
             Presentation
           </span>
-          <span className="mt-1.5 flex-1 text-body-sm text-text-muted">
-            Rehearse a talk from your speaker notes or talking points.
+          <span className="mt-1.5 flex-1 text-body-sm text-text-body">
+            Rehearse a talk from your speaker notes or slides.
           </span>
-          <span className="mt-4">
-            <Badge tone="outline">Coming soon</Badge>
+          <span className="mt-4 inline-flex items-center gap-1 text-body-sm font-medium text-text-accent">
+            Start
+            <span className="transition-transform group-hover:translate-x-0.5">&rarr;</span>
           </span>
         </Card>
       </div>
