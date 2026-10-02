@@ -319,7 +319,9 @@ wrapper over `GET/PATCH /api/state` and `POST/DELETE /api/attempts`.
   `presentation-feedback`) log `request received` → `anthropic call
   started` → `succeeded` / `failed` → `response sent`; `expert-request` and
   `script-label` log their own lifecycle; `state` / `attempts` log failures
-  only. Every line is prefixed `[<route> <request-id>]` (see `lib/logger.ts`),
+  only. Every line is prefixed `[<route> <request-id>]` (see `lib/logger.ts`);
+  the interview/presentation data routes log failures through
+  `errorSummary()`, one line with the Prisma error code and cause,
   plain `console` — visible in `npm run dev` output or your host's function
   logs.
 - **Output verification** — before returning, `lib/verifyOutput.ts` checks the

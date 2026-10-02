@@ -19,3 +19,22 @@ export function logError(
   if (extra === undefined) console.error(`[${scope} ${id}] ${msg}`);
   else console.error(`[${scope} ${id}] ${msg}`, extra);
 }
+
+const MAX_SUMMARY = 300;
+
+/** One readable log line for any thrown value. Prisma errors start with a
+ *  newline and an "Invalid `prisma.x()` invocation:" preamble, which made
+ *  "GET failed: " look blank in the dev log — this keeps the error code and
+ *  the actual cause on the same line. */
+export function errorSummary(err: unknown): string {
+  if (!(err instanceof Error)) return String(err);
+  const code = (err as { code?: unknown }).code;
+  const text = err.message
+    .replace(/Invalid `[^`]*` invocation:/, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  const line = [typeof code === "string" ? code : "", text || err.name]
+    .filter(Boolean)
+    .join(" ");
+  return line.length > MAX_SUMMARY ? `${line.slice(0, MAX_SUMMARY - 1)}…` : line;
+}

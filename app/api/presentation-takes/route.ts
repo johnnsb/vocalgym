@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import * as Sentry from "@sentry/nextjs";
 import { getSessionId } from "@/lib/session";
 import { addTake, listTakes } from "@/lib/presentationPrep.server";
-import { logError, newRequestId } from "@/lib/logger";
+import { errorSummary, logError, newRequestId } from "@/lib/logger";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -14,7 +14,7 @@ export async function GET() {
   try {
     return NextResponse.json(await listTakes(getSessionId()));
   } catch (err) {
-    logError(SCOPE, rid, `GET failed: ${err instanceof Error ? err.message : String(err)}`);
+    logError(SCOPE, rid, `GET failed: ${errorSummary(err)}`);
     Sentry.captureException(err, { tags: { route: SCOPE, rid } });
     return NextResponse.json({ error: "Couldn't load your past runs." }, { status: 500 });
   }
@@ -34,7 +34,7 @@ export async function POST(request: Request) {
     if (err instanceof Error && err.message === "invalid take") {
       return NextResponse.json({ error: "A run needs a transcript and feedback." }, { status: 400 });
     }
-    logError(SCOPE, rid, `POST failed: ${err instanceof Error ? err.message : String(err)}`);
+    logError(SCOPE, rid, `POST failed: ${errorSummary(err)}`);
     Sentry.captureException(err, { tags: { route: SCOPE, rid } });
     return NextResponse.json({ error: "Couldn't save this run." }, { status: 500 });
   }
