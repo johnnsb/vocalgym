@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import * as Sentry from "@sentry/nextjs";
 import { getSessionId } from "@/lib/session";
 import { getPresentationPrep, savePresentationPrep } from "@/lib/presentationPrep.server";
-import { logError, newRequestId } from "@/lib/logger";
+import { errorSummary, logError, newRequestId } from "@/lib/logger";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -16,7 +16,7 @@ export async function GET() {
   try {
     return NextResponse.json(await getPresentationPrep(getSessionId()));
   } catch (err) {
-    logError(SCOPE, rid, `GET failed: ${err instanceof Error ? err.message : String(err)}`);
+    logError(SCOPE, rid, `GET failed: ${errorSummary(err)}`);
     Sentry.captureException(err, { tags: { route: SCOPE, rid } });
     return NextResponse.json({ error: "Couldn't load your saved setup." }, { status: 500 });
   }
@@ -33,7 +33,7 @@ export async function PUT(request: Request) {
   try {
     return NextResponse.json(await savePresentationPrep(getSessionId(), body));
   } catch (err) {
-    logError(SCOPE, rid, `PUT failed: ${err instanceof Error ? err.message : String(err)}`);
+    logError(SCOPE, rid, `PUT failed: ${errorSummary(err)}`);
     Sentry.captureException(err, { tags: { route: SCOPE, rid } });
     return NextResponse.json({ error: "Couldn't save your setup." }, { status: 500 });
   }

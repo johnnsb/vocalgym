@@ -293,7 +293,10 @@ signals — rolled up into a single "Effective" score.
     `presentation-feedback`) emit full-lifecycle structured console logs via
     `lib/logger.ts` (`[<route> <request-id>]` — request received / anthropic
     call started / succeeded|failed / response sent / blocked by cap /
-    verification failed). `expert-request` and `script-label` log their own
+    verification failed). Failures in the interview/presentation data routes
+    are logged via `errorSummary(err)` (lib/logger.ts) — one line with the
+    Prisma code (e.g. `P1001 Can't reach database server…`) instead of
+    Prisma's multi-line message, whose first line is blank. `expert-request` and `script-label` log their own
     lifecycle; `state` and `attempts` log failures only, through the same helper.
   - Before returning, `lib/verifyOutput.ts` checks the feedback has all 5
     required sections (Nonverbal is optional) and the script is
