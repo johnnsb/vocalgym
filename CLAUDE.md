@@ -86,8 +86,10 @@ signals — rolled up into a single "Effective" score.
   - `/prep` — "Practice from your notes" hub, reached ONLY from a quiet strip
     under the three path cards ("Have an interview or presentation coming
     up?") — deliberately kept out of the main three-path flow and the nav.
-    Interview card → `/prep/interview`; Presentation card →
-    `/prep/presentation`.
+    Three cards: Interview → `/prep/interview`; Presentation →
+    `/prep/presentation`; Defend your work → `/grill` (whose back link now
+    returns to `/prep`). This hub is the seed of a future "job practice" hub
+    — grow it rather than cloning flows.
   Both `/script` and `/generate` also render the effectiveness rubric picker.
 - `/prep/interview` (`InterviewSession`) — mock interview with no script. State
   machine `loading → setup → planning → round ⇄ followup-loading →
@@ -220,8 +222,8 @@ signals — rolled up into a single "Effective" score.
   **v0 scope, deliberately**: no persistence (nothing saved as an `Attempt`,
   nothing survives a refresh — `startOver()` just resets component state), no
   rubric/Effective-score involvement (the camera toggle in `PracticeRecorder`
-  still works but its signal goes unused here), no nav link yet (reachable only
-  at `/grill` directly), not wired to PostHog. See "Open questions" for the
+  still works but its signal goes unused here), linked only from the `/prep`
+  hub (no landing-page card or nav link), not wired to PostHog. See "Open questions" for the
   follow-on (content-scored qualities) this would need to plug into the rubric.
 - Persistence: **Postgres via Prisma**, scoped to an anonymous session.
   - Identity: `middleware.ts` ensures every request carries a `vg_sid` httpOnly
@@ -546,8 +548,8 @@ signals — rolled up into a single "Effective" score.
   (also in InterviewSession).
 - Interview rounds (`/prep/interview`) aren't persisted — no round history,
   no resume after refresh; the camera signal is unused there too.
-- `/grill` v0 is a prototype, not a finished feature: no link from `/` or
-  `SiteHeader` yet (direct URL only), no persistence (no `Attempt` history, no
+- `/grill` v0 is a prototype, not a finished feature: reachable from the
+  `/prep` hub only (no landing-page card or nav link), no persistence (no `Attempt` history, no
   resume on refresh), not instrumented with PostHog events, and the recorder's
   camera toggle works but its signal isn't used by the feedback call. See
   Architecture above and "Open questions" for the content-scored-quality

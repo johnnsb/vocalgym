@@ -23,10 +23,10 @@ export default function GrillPage() {
           </p>
         </div>
         <Link
-          href="/"
+          href="/prep"
           className="mt-1 whitespace-nowrap text-body-sm font-medium text-text-muted underline underline-offset-4 transition hover:text-text-primary"
         >
-          ← Home
+          ← Back
         </Link>
       </header>
       <GrillSession />
