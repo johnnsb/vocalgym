@@ -19,13 +19,13 @@ export function decodeXmlEntities(s: string): string {
     if (k === "quot") return '"';
     if (k === "apos") return "'";
     const code = k.startsWith("#x") ? parseInt(k.slice(2), 16) : parseInt(k.slice(1), 10);
-    return Number.isFinite(code) ? String.fromCodePoint(code) : "";
+    return Number.isFinite(code) && code >= 0 && code <= 0x10ffff ? String.fromCodePoint(code) : "";
   });
 }
 
 function attr(tag: string, name: string): string | null {
-  const m = tag.match(new RegExp(`\\b${name}="([^"]*)"`));
-  return m ? m[1] : null;
+  const m = tag.match(new RegExp(`\\b${name}=(?:"([^"]*)"|'([^']*)')`));
+  return m ? m[1] ?? m[2] : null;
 }
 
 function relationships(relsXml: string): { id: string; type: string; target: string }[] {
@@ -83,14 +83,26 @@ function paragraphs(shape: string): string[] {
       .matchAll(/<a:p\b[\s\S]*?<\/a:p>/g),
   )
     .map((p) =>
-      decodeXmlEntities(Array.from(p[0].matchAll(/<a:t>([^<]*)<\/a:t>/g)).map((t) => t[1]).join("")).trim(),
+      decodeXmlEntities(Array.from(p[0].matchAll(/<a:t\b[^>]*>([^<]*)<\/a:t>/g)).map((t) => t[1]).join("")).trim(),
     )
     .filter(Boolean);
 }
 
+const MAX_FALLBACK_TITLE = 120;
+
 export function slideTitle(slideXml: string): string {
-  const title = shapes(slideXml).find((s) => /^(title|ctrTitle)$/.test(placeholderType(s) ?? ""));
-  return title ? paragraphs(title).join(" ").replace(/\s*\n\s*/g, " ") : "";
+  const all = shapes(slideXml);
+  const title = all.find((s) => /^(title|ctrTitle)$/.test(placeholderType(s) ?? ""));
+  if (title) return paragraphs(title).join(" ").replace(/\s*\n\s*/g, " ");
+  // Many templates keep the title in the layout or in a plain text box, so a
+  // slide has no title placeholder of its own. Fall back to the first line of
+  // the first text box that isn't a slide number / date / footer.
+  for (const s of all) {
+    if (NON_NOTE_PLACEHOLDERS.has(placeholderType(s) ?? "")) continue;
+    const first = paragraphs(s)[0]?.split("\n")[0]?.trim();
+    if (first) return first.slice(0, MAX_FALLBACK_TITLE);
+  }
+  return "";
 }
 
 const NON_NOTE_PLACEHOLDERS = new Set(["sldNum", "sldImg", "hdr", "ftr", "dt"]);

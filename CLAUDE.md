@@ -160,7 +160,11 @@ signals — rolled up into a single "Effective" score.
     Slides tabs (both kept — `mode` picks the active one); notes via paste or
     .txt/.md/.pdf upload; slides via `.pptx` import (`lib/pptxImport.ts`:
     order from `ppt/presentation.xml` `sldIdLst` — never file names; title =
-    `title`/`ctrTitle` placeholder; notes = notes-slide text minus
+    `title`/`ctrTitle` placeholder, else the first line of the first text box
+    that isn't a slide number/date/footer (many templates keep titles in the
+    layout); `<a:br/>` → line break; `<a:t>` with attributes and
+    single-quoted attrs handled; out-of-range entities dropped; notes =
+    notes-slide text minus
     sldNum/sldImg/hdr/ftr/dt; entities decoded; ≤40 slides, ≤20,000 notes
     chars with later slides cut first; legacy `.ppt` rejected) or by hand;
     re-import asks inline. Optional audience + time limit (1–120 min).
@@ -334,8 +338,9 @@ signals — rolled up into a single "Effective" score.
     not per auto-save), `interview_round_started` ({panel_size,
     question_count}), `interview_round_completed` ({answered, followups,
     ended_early, duration_sec}), `interview_feedback_received` (no props),
-    `presentation_setup_saved` ({mode, slide_count, has_audience,
-    has_time_limit} — fired on every Start/Run it again),
+    `presentation_run_started` ({mode, slide_count, has_audience,
+    has_time_limit} — fired on every Start/Run it again; was
+    `presentation_setup_saved`),
     `presentation_take_completed` ({used_video, duration_sec, slide_count}),
     `presentation_feedback_received` ({effective_score, effective_band,
     used_video}).
@@ -541,11 +546,15 @@ signals — rolled up into a single "Effective" score.
   `next build`.
 - Presentation follow-ups: audience Q&A after the talk, a drill-one-slide
   mode, and a numeric coverage score (the content-scored-qualities work in
-  "Open questions"). Known v1 minors: history delete has no confirm/undo;
-  uploaded notes cap at 8,000 chars (typed: 12,000); a11y gaps (history
-  toggle aria-expanded, slide counter aria-live, Tabs roles); dev-only
-  StrictMode double-load can overwrite a keystroke typed within ms of load
-  (also in InterviewSession).
+  "Open questions"). Polish pass done (history delete asks inline; failed
+  delete / history load are shown; uploaded notes allow 12,000 via
+  `extractScriptText(file, { maxChars })`; time limit clamps via
+  `parseTimeLimit`; save warning shown on the run screen; aria-expanded /
+  aria-live / focus handoff; `Tabs` has tablist/tab roles; both setup loads
+  ignore a superseded StrictMode load via a `cancelled` flag). Still open:
+  per-slide timing can be ~0.5s off; feedback checks accept a bullet-prefixed
+  heading and reject `###` headings; user text isn't escaped inside prompt
+  XML tags.
 - Interview rounds (`/prep/interview`) aren't persisted — no round history,
   no resume after refresh; the camera signal is unused there too.
 - `/grill` v0 is a prototype, not a finished feature: reachable from the

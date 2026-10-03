@@ -51,7 +51,13 @@ export interface ImportedScript {
 }
 
 /** Throws an Error with a user-facing message on anything unreadable. */
-export async function extractScriptText(file: File): Promise<ImportedScript> {
+/** `maxChars` defaults to MAX_SCRIPT_CHARS (8,000) — existing callers are
+ *  unchanged; presentation notes pass their own 12,000 limit. */
+export async function extractScriptText(
+  file: File,
+  opts: { maxChars?: number } = {},
+): Promise<ImportedScript> {
+  const maxChars = opts.maxChars ?? MAX_SCRIPT_CHARS;
   if (file.size === 0) throw new Error("That file is empty.");
   if (file.size > MAX_UPLOAD_BYTES) {
     throw new Error("That file is over the 5 MB limit.");
@@ -87,7 +93,7 @@ export async function extractScriptText(file: File): Promise<ImportedScript> {
     );
   }
 
-  return text.length > MAX_SCRIPT_CHARS
-    ? { text: text.slice(0, MAX_SCRIPT_CHARS), truncated: true }
+  return text.length > maxChars
+    ? { text: text.slice(0, maxChars), truncated: true }
     : { text, truncated: false };
 }

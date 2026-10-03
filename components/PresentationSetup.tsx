@@ -4,7 +4,7 @@ import { useRef, useState, type ChangeEvent } from "react";
 import SlideListEditor from "./SlideListEditor";
 import { ACCEPTED_UPLOAD, extractScriptText } from "@/lib/scriptImport";
 import { reportClientError } from "@/lib/clientErrors";
-import { PRESENTATION_LIMITS } from "@/lib/presentationPrep";
+import { PRESENTATION_LIMITS, parseTimeLimit } from "@/lib/presentationPrep";
 import type { PresentationPrep } from "@/lib/types";
 import { Button, Callout, Card, Field, Input, Tabs, Textarea } from "@/components/ui";
 
@@ -21,6 +21,10 @@ export default function PresentationSetup({ value, onChange }: Props) {
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // The raw text in the time-limit box, so typing "150" or "0" doesn't blank
+  // it mid-keystroke; the stored value is clamped (parseTimeLimit) and the
+  // box tidies to it on blur.
+  const [limitRaw, setLimitRaw] = useState(value.timeLimitMin?.toString() ?? "");
 
   async function handleNotesFile(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -29,9 +33,9 @@ export default function PresentationSetup({ value, onChange }: Props) {
     setBusy(true);
     setError(null);
     try {
-      const { text, truncated } = await extractScriptText(file);
+      const { text, truncated } = await extractScriptText(file, { maxChars: PRESENTATION_LIMITS.notes });
       set({ notes: text });
-      setNote(`Imported “${file.name}”${truncated ? " — trimmed to the first 8,000 characters" : ""}.`);
+      setNote(`Imported “${file.name}”${truncated ? " — trimmed to the first 12,000 characters" : ""}.`);
     } catch (err) {
       reportClientError(err, { area: "presentation:notes-upload" });
       setError(err instanceof Error ? err.message : "Couldn't read that file.");
@@ -111,14 +115,12 @@ export default function PresentationSetup({ value, onChange }: Props) {
             type="number"
             min={PRESENTATION_LIMITS.timeLimitMinMin}
             max={PRESENTATION_LIMITS.timeLimitMinMax}
-            value={value.timeLimitMin ?? ""}
+            value={limitRaw}
             onChange={(e) => {
-              const n = Number(e.target.value);
-              set({
-                timeLimitMin:
-                  e.target.value === "" || !Number.isFinite(n) || n < 1 || n > 120 ? null : Math.round(n),
-              });
+              setLimitRaw(e.target.value);
+              set({ timeLimitMin: parseTimeLimit(e.target.value) });
             }}
+            onBlur={() => setLimitRaw(value.timeLimitMin?.toString() ?? "")}
             style={{ maxWidth: 120 }}
           />
         </Field>

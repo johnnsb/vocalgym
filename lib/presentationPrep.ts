@@ -191,3 +191,15 @@ export function formatDuration(seconds: number): string {
   const s = Math.max(0, Math.round(seconds));
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 }
+
+/** Time-limit box: blank/non-numeric → no limit; anything else is clamped to
+ *  1–120 whole minutes (rather than silently discarded mid-typing). */
+export function parseTimeLimit(raw: string): number | null {
+  if (!raw.trim()) return null;
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return null;
+  return Math.min(
+    Math.max(Math.round(n), PRESENTATION_LIMITS.timeLimitMinMin),
+    PRESENTATION_LIMITS.timeLimitMinMax,
+  );
+}
