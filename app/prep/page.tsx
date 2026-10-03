@@ -4,7 +4,7 @@ import { Card, Icon } from "@/components/ui";
 
 export const metadata: Metadata = {
   title: "Interviews & presentations · VocalGym",
-  description: "Practice from your notes: a mock interview panel, or a talk you're giving.",
+  description: "Practice from your notes: a mock interview panel, a talk you're giving, or defending your work under questioning.",
 };
 
 export default function PrepHubPage() {
@@ -27,7 +27,7 @@ export default function PrepHubPage() {
         </Link>
       </header>
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-4 sm:grid-cols-3">
         <Card as={Link} href="/prep/interview" interactive className="group flex flex-col no-underline">
           <span className="flex items-center gap-2 text-label font-semibold text-text-primary">
             <Icon name="message-square" size={16} />
@@ -50,6 +50,21 @@ export default function PrepHubPage() {
           </span>
           <span className="mt-1.5 flex-1 text-body-sm text-text-body">
             Rehearse a talk from your speaker notes or slides.
+          </span>
+          <span className="mt-4 inline-flex items-center gap-1 text-body-sm font-medium text-text-accent">
+            Start
+            <span className="transition-transform group-hover:translate-x-0.5">&rarr;</span>
+          </span>
+        </Card>
+
+        <Card as={Link} href="/grill" interactive className="group flex flex-col no-underline">
+          <span className="flex items-center gap-2 text-label font-semibold text-text-primary">
+            <Icon name="shield" size={16} />
+            Defend your work
+          </span>
+          <span className="mt-1.5 flex-1 text-body-sm text-text-body">
+            Answer tough questions about a proposal or write-up, then handle a
+            follow-up on what you said.
           </span>
           <span className="mt-4 inline-flex items-center gap-1 text-body-sm font-medium text-text-accent">
             Start

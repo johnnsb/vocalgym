@@ -139,7 +139,7 @@ app/
   faq/page.tsx                     Stub FAQ (a few real short answers)
   signin/page.tsx                  Thin "coming soon" stub
   practice/page.tsx                Practice route
-  grill/page.tsx                   "Defend your work" v0 — GrillSession (no nav link yet, direct URL only)
+  grill/page.tsx                   "Defend your work" v0 — GrillSession (linked from the /prep hub)
   globals.css                      Imports styles/tokens.css, then Tailwind
   styles/tokens.css                Design-system tokens (CSS custom properties)
 components/
@@ -468,8 +468,8 @@ paste into `/script`.
 pushback*: upload or paste the material you're presenting, get likely
 reviewer questions, answer one out loud, get one Claude-generated follow-up
 that's actually responsive to what you said (not a fixed list), answer that
-too, then get qualitative feedback across both exchanges. It's not linked from
-the landing page or nav yet — reach it at `/grill` directly.
+too, then get qualitative feedback across both exchanges. It's reached from the
+`/prep` hub ("Defend your work" card) — not from the landing page or nav.
 
 1. `POST /api/generate-questions` — `{ source }` → `{ questions }`, a
    numbered list of 3–6 likely reviewer questions (only numbered lines are
