@@ -47,6 +47,8 @@ export default function PresentationSession() {
   const [demoLimited, setDemoLimited] = useState(false);
   const [saveWarning, setSaveWarning] = useState<string | null>(null);
   const [takeWarning, setTakeWarning] = useState<string | null>(null);
+  const [takesLoadFailed, setTakesLoadFailed] = useState(false);
+  const [historyNotice, setHistoryNotice] = useState<string | null>(null);
 
   // Same data-safety rules as the interview page (see lib/interviewRound.ts):
   // save only after a successful load; flush a pending save on leave.
@@ -60,21 +62,37 @@ export default function PresentationSession() {
   stageRef.current = stage;
 
   useEffect(() => {
+    // `cancelled`: a superseded load (React StrictMode runs this twice in dev)
+    // must not land after the user has started typing and overwrite it.
+    let cancelled = false;
     loadPresentationPrep()
       .catch(() => new Promise((r) => setTimeout(r, 1000)).then(loadPresentationPrep))
       .then((p) => {
+        if (cancelled) return;
         loaded.current = true;
         lastSaved.current = JSON.stringify(p);
         setPrep(p);
       })
       .catch((err) => {
+        if (cancelled) return;
         reportClientError(err, { area: "presentation:load" });
         setSaveWarning("Couldn't load your saved setup. You can still practice, but changes won't be saved this visit.");
       })
-      .finally(() => setStage("setup"));
+      .finally(() => {
+        if (!cancelled) setStage("setup");
+      });
     loadTakes()
-      .then(setTakes)
-      .catch((err) => reportClientError(err, { area: "presentation:load-takes" }));
+      .then((t) => {
+        if (!cancelled) setTakes(t);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        reportClientError(err, { area: "presentation:load-takes" });
+        setTakesLoadFailed(true);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   function persistIfChanged(state: PresentationPrep, leaving = false) {
@@ -115,7 +133,7 @@ export default function PresentationSession() {
 
   function startRun() {
     persistIfChanged(prep);
-    track(EVENTS.presentationSetupSaved, {
+    track(EVENTS.presentationRunStarted, {
       mode: prep.mode,
       slide_count: prep.mode === "slides" ? prep.slides.length : 0,
       has_audience: Boolean(prep.audience.trim()),
@@ -175,9 +193,11 @@ export default function PresentationSession() {
   }
 
   function removeTake(id: string) {
+    setHistoryNotice(null);
     setTakes((prev) => prev.filter((t) => t.id !== id));
     deleteTake(id).catch((err) => {
       reportClientError(err, { area: "presentation:delete-take" });
+      setHistoryNotice("Couldn't delete that run — it's back in your list.");
       loadTakes().then(setTakes).catch(() => {});
     });
   }
@@ -215,6 +235,7 @@ export default function PresentationSession() {
   } else if (stage === "run") {
     main = (
       <div className="space-y-4">
+        {saveWarning && <Callout tone="caution">{saveWarning}</Callout>}
         <PresentationRun
           prep={prep}
           result={result}
@@ -269,7 +290,7 @@ export default function PresentationSession() {
     <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_320px]">
       <div className="min-w-0">{main}</div>
       <aside>
-        <PresentationHistory takes={takes} onDelete={removeTake} />
+        <PresentationHistory takes={takes} onDelete={removeTake} loadFailed={takesLoadFailed} notice={historyNotice} />
       </aside>
     </div>
   );

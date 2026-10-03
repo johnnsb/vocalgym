@@ -33,11 +33,22 @@ export default function PresentationRun({ prep, result, onRecording, onTranscrip
   // the fact — so Get feedback / Edit setup wait until it stops.
   const [recording, setRecording] = useState(false);
 
+  const navRef = useRef<HTMLDivElement>(null);
+
   function go(to: number) {
     const next = Math.min(Math.max(to, 0), slides.length - 1);
     if (next === index) return;
     setIndex(next);
     changes.current.push({ slideId: slides[next].id, at: Date.now() });
+    // Reaching either end disables the button that has focus; hand focus to
+    // the other one so keyboard users aren't dropped back to the page.
+    const nav = navRef.current;
+    if (nav && nav.contains(document.activeElement) && (next === 0 || next === slides.length - 1)) {
+      requestAnimationFrame(() => {
+        const [prevBtn, nextBtn] = Array.from(nav.querySelectorAll("button"));
+        (next === 0 ? nextBtn : prevBtn)?.focus();
+      });
+    }
   }
 
   const current = slides[index];
@@ -51,10 +62,10 @@ export default function PresentationRun({ prep, result, onRecording, onTranscrip
       {prep.mode === "slides" && current && (
         <Card className="space-y-2">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <span className="text-caption text-text-muted">
+            <span className="text-caption text-text-muted" aria-live="polite">
               Slide {index + 1} of {slides.length}
             </span>
-            <div className="flex gap-2">
+            <div className="flex gap-2" ref={navRef}>
               <Button variant="secondary" size="sm" icon="arrow-left" onClick={() => go(index - 1)} disabled={index === 0}>
                 Prev
               </Button>

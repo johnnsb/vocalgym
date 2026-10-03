@@ -32,6 +32,7 @@ export function Tabs({
   if (variant === "segmented") {
     return (
       <div
+        role="tablist"
         style={{
           display: "inline-flex",
           gap: 2,
@@ -47,6 +48,8 @@ export function Tabs({
             <button
               key={t.value}
               type="button"
+              role="tab"
+              aria-selected={on}
               onClick={() => onChange?.(t.value)}
               style={{
                 height: 32,
@@ -74,6 +77,7 @@ export function Tabs({
 
   return (
     <div
+      role="tablist"
       style={{
         display: "flex",
         gap: "var(--space-6)",
@@ -87,6 +91,8 @@ export function Tabs({
           <button
             key={t.value}
             type="button"
+            role="tab"
+            aria-selected={on}
             onClick={() => onChange?.(t.value)}
             style={{
               position: "relative",

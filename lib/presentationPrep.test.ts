@@ -5,6 +5,7 @@ import {
   capSlides,
   emptyPresentationPrep,
   formatDuration,
+  parseTimeLimit,
   normalizePresentationPrep,
   normalizeSlideTimings,
   normalizeTakeInput,
@@ -198,5 +199,19 @@ describe("transcript limit for real-length talks", () => {
     const t = normalizeTakeInput({ transcript: talk, feedback: "**Overall** ok" })!;
     expect(t.transcript).toHaveLength(20_000);
     expect(PRESENTATION_LIMITS.transcript).toBeGreaterThanOrEqual(60_000);
+  });
+});
+
+describe("parseTimeLimit", () => {
+  it("is null for blank or non-numeric input", () => {
+    expect(parseTimeLimit("")).toBeNull();
+    expect(parseTimeLimit("  ")).toBeNull();
+    expect(parseTimeLimit("abc")).toBeNull();
+  });
+  it("clamps to 1-120 whole minutes instead of discarding", () => {
+    expect(parseTimeLimit("0")).toBe(1);
+    expect(parseTimeLimit("150")).toBe(120);
+    expect(parseTimeLimit("7.6")).toBe(8);
+    expect(parseTimeLimit("15")).toBe(15);
   });
 });

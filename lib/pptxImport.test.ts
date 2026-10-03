@@ -58,7 +58,9 @@ describe("slideTitle / notesText", () => {
   it("reads the title placeholder only", () => {
     expect(slideTitle(slideXml("Pricing &amp; tiers", "Not the title"))).toBe("Pricing & tiers");
     expect(slideTitle(`<p:sld>${sp("ctrTitle", ["Welcome"])}</p:sld>`)).toBe("Welcome");
-    expect(slideTitle(`<p:sld>${sp(null, ["no title"])}</p:sld>`)).toBe("");
+    // No title placeholder: falls back to the first text box (see the
+    // "slides without a title placeholder" tests below).
+    expect(slideTitle(`<p:sld>${sp(null, ["no title"])}</p:sld>`)).toBe("no title");
   });
   it("reads the notes body, one line per paragraph, without the slide number", () => {
     expect(notesText(notesXml(["Three tiers", "Anchor on Pro"]))).toBe("Three tiers\nAnchor on Pro");
@@ -133,5 +135,48 @@ describe("line breaks inside a paragraph (<a:br/>)", () => {
   });
   it("keeps the line break in notes", () => {
     expect(notesText(`<p:notes>${brShape("body")}</p:notes>`)).toBe("Q3 Results\nand Outlook\n2026");
+  });
+});
+
+describe("less common XML shapes", () => {
+  it("reads <a:t> runs that carry attributes", () => {
+    const xml = `<p:sld><p:sp><p:nvSpPr><p:nvPr><p:ph type="title"/></p:nvPr></p:nvSpPr><p:txBody><a:p><a:r><a:t xml:space="preserve">Hello </a:t></a:r><a:r><a:t>world</a:t></a:r></a:p></p:txBody></p:sp></p:sld>`;
+    expect(slideTitle(xml)).toBe("Hello world");
+  });
+  it("reads single-quoted attributes", () => {
+    const pres = `<p:presentation><p:sldIdLst><p:sldId id='256' r:id='rId7'/></p:sldIdLst></p:presentation>`;
+    const rels = `<Relationships><Relationship Id='rId7' Type='x/slide' Target='slides/slide1.xml'/></Relationships>`;
+    expect(slideOrder(pres, rels)).toEqual(["ppt/slides/slide1.xml"]);
+  });
+  it("drops out-of-range numeric entities instead of throwing", () => {
+    expect(decodeXmlEntities("a&#99999999;b&#xFFFFFFFF;c")).toBe("abc");
+  });
+});
+
+describe("slides without a title placeholder (titles kept in layouts / plain text boxes)", () => {
+  const box = (paras: string[], ph = "") =>
+    `<p:sp><p:nvSpPr><p:nvPr>${ph}</p:nvPr></p:nvSpPr><p:txBody>${paras.map((t) => `<a:p><a:r><a:t>${t}</a:t></a:r></a:p>`).join("")}</p:txBody></p:sp>`;
+
+  it("falls back to the first line of the first text box", () => {
+    const xml = `<p:sld><p:cSld><p:spTree>${box(["Why AI now", "Second line"])}${box(["Body text"])}</p:spTree></p:cSld></p:sld>`;
+    expect(slideTitle(xml)).toBe("Why AI now");
+  });
+
+  it("ignores slide-number / date / footer boxes when falling back", () => {
+    const xml = `<p:sld>${box(["7"], '<p:ph type="sldNum"/>')}${box(["Oct 2026"], '<p:ph type="dt"/>')}${box(["Real heading"])}</p:sld>`;
+    expect(slideTitle(xml)).toBe("Real heading");
+  });
+
+  it("caps a long fallback line", () => {
+    expect(slideTitle(`<p:sld>${box(["w".repeat(500)])}</p:sld>`).length).toBeLessThanOrEqual(120);
+  });
+
+  it("still prefers a real title placeholder", () => {
+    const xml = `<p:sld>${box(["Body first"])}${box(["The Title"], '<p:ph type="title"/>')}</p:sld>`;
+    expect(slideTitle(xml)).toBe("The Title");
+  });
+
+  it("returns empty for a slide with no text at all", () => {
+    expect(slideTitle(`<p:sld><p:cSld><p:spTree></p:spTree></p:cSld></p:sld>`)).toBe("");
   });
 });

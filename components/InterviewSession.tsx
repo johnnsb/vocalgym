@@ -64,20 +64,30 @@ export default function InterviewSession() {
   // Hydrate the saved panel once (one retry: Neon cold starts fail the first
   // connection now and then).
   useEffect(() => {
+    // `cancelled`: a superseded load (React StrictMode runs this twice in dev)
+    // must not land after the user has started typing and overwrite it.
+    let cancelled = false;
     loadInterviewPrep()
       .catch(() => new Promise((r) => setTimeout(r, 1000)).then(loadInterviewPrep))
       .then((p) => {
+        if (cancelled) return;
         loaded.current = true;
         lastSaved.current = JSON.stringify(p);
         setPrep(p);
       })
       .catch((err) => {
+        if (cancelled) return;
         reportClientError(err, { area: "interview:load" });
         setSaveWarning(
           "Couldn't load your saved panel. You can still practice, but changes won't be saved this visit.",
         );
       })
-      .finally(() => setStage("setup"));
+      .finally(() => {
+        if (!cancelled) setStage("setup");
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   function persistIfChanged(state: InterviewPrepState) {

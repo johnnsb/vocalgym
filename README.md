@@ -128,7 +128,7 @@ app/
   layout.tsx                       Root layout (+ SiteHeader nav, AnalyticsProvider)
   providers.tsx                    Client analytics bootstrap + route-change $pageview
   page.tsx                         Landing page (tagline + 3 path cards + /prep strip)
-  prep/page.tsx                    "Practice from your notes" hub (Interview, Presentation)
+  prep/page.tsx                    "Practice from your notes" hub (Interview, Presentation, Defend your work)
   prep/interview/page.tsx          Mock interview — InterviewSession
   prep/presentation/page.tsx       Presentation run-through — PresentationSession
   generate/page.tsx                "Help me find the words" — GenerateFlow
@@ -367,8 +367,8 @@ wrapper over `GET/PATCH /api/state` and `POST/DELETE /api/attempts`.
     ended_early, duration_sec}`), `interview_feedback_received` (no
     properties). The interview feedback smiley uses survey key
     `interview_feedback_rating`. For `/prep/presentation`:
-    `presentation_setup_saved` (`{mode, slide_count, has_audience,
-    has_time_limit}`), `presentation_take_completed` (`{used_video,
+    `presentation_run_started` (`{mode, slide_count, has_audience,
+    has_time_limit}`, every Start / Run it again), `presentation_take_completed` (`{used_video,
     duration_sec, slide_count}`), `presentation_feedback_received`
     (`{effective_score, effective_band, used_video}`); survey key
     `presentation_feedback_rating`.
@@ -563,7 +563,9 @@ run-through, and see which points landed.
    used. Optional *"Who's in the room?"* and a time limit. Auto-saved to
    `PresentationPrep` (same load guard + save-on-leave as interviews).
    `.pptx` import follows the deck's real slide order, decodes entities,
-   drops slide-number boxes, keeps titles for slides without notes, and trims
+   drops slide-number boxes, falls back to a slide's first text box when its
+   template keeps the title in the layout, keeps titles for slides without
+   notes, and trims
    to 40 slides / 20,000 characters of notes (later slides first). Old `.ppt`
    files are rejected with "Save it as .pptx".
 2. **Run-through** (`PresentationRun.tsx`) — one take with `PracticeRecorder`
