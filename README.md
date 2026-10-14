@@ -91,6 +91,17 @@ Claude Design project — see **Design system** below.
    normalization, prompt building, output verification). UI flows are checked
    by hand in the browser. Separate from `npm run eval` (output *quality*).
 
+   Lint with `npm run lint` (`next lint`, `.eslintrc.json` extends
+   `next/core-web-vitals`; ESLint 8, since Next 14 doesn't support 9).
+
+   npm 11 only runs dependency install scripts listed in `package.json`
+   `allowScripts`. Prisma (generates the client on install), esbuild and
+   `@sentry/cli` are allowed; core-js (a banner), fsevents (prebuilt) and
+   unrs-resolver (prebuilt) are denied. If a new dependency warns about an
+   install script, decide with `npm install-scripts approve|deny <pkg>`.
+   Allowed entries are pinned to exact versions, so after upgrading one of
+   those packages, approve it again.
+
 ## Project structure
 
 ```
@@ -587,7 +598,9 @@ run-through, and see which points landed.
    claim or something unclear, one about what's missing, risks or next steps.
    Answer each out loud (`PresentationQaStep.tsx`, `PracticeRecorder` +
    editable transcript). *Skip questions → get feedback* is always there;
-   unanswered questions are dropped. No follow-ups.
+   unanswered questions are dropped. *Skip the rest* keeps the on-screen
+   answer and drops later questions; *Skip this one* (last question) drops
+   the on-screen answer. No follow-ups.
 4. **Feedback** — `POST /api/presentation-feedback` → **Overall** /
    **Coverage** (each slide, or up to ~8 talking points from your notes:
    covered, partly, or missed) / **Flow & timing** (pacing per slide, total vs.
