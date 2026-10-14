@@ -116,7 +116,8 @@ app/
   api/presentation-prep/route.ts   GET/PUT the session's presentation setup
   api/presentation-takes/route.ts  GET run history / POST a run (after feedback)
   api/presentation-takes/[id]/route.ts  DELETE one run (session-scoped)
-  api/presentation-feedback/route.ts  presentation: POST prep+transcript+timings+signals -> { feedback }
+  api/presentation-questions/route.ts  presentation: POST prep+transcript -> { questions } (2 audience Qs, opt-in)
+  api/presentation-feedback/route.ts  presentation: POST prep+transcript+timings+signals(+qa) -> { feedback }
   api/state/route.ts               GET session state (script+rubric+attempts); PATCH to update
   api/attempts/route.ts            POST save an attempt; DELETE clear all
   api/attempts/[id]/route.ts       DELETE one attempt (session-scoped)
@@ -170,6 +171,7 @@ components/
   PresentationSetup.tsx            Title, Notes/Slides tabs, notes upload, audience, time limit
   SlideListEditor.tsx              .pptx import (inline replace-confirm) + editable slide rows
   PresentationRun.tsx              Slide stepper + recorder + per-slide timing + live Effective score
+  PresentationQaStep.tsx           One audience question: record/type an answer, next / skip
   PresentationFeedbackSections.tsx Parses presentation feedback markdown (own section set)
   PresentationHistory.tsx          Past runs: date, duration, score; expand / delete
 lib/
@@ -312,11 +314,11 @@ wrapper over `GET/PATCH /api/state` and `POST/DELETE /api/attempts`.
   source maps so stack traces resolve to the original TypeScript; without them
   the build still succeeds and capture still works, traces just stay minified.
   Only `next build` is affected — `npm run dev` never uploads.
-- **Structured logs** — all nine Claude routes (`generate-script`,
+- **Structured logs** — all ten Claude routes (`generate-script`,
   `practice-feedback`, the three `/grill` routes — `generate-questions`,
   `followup-question`, `qa-feedback` — the three interview routes —
   `interview-questions`, `interview-followup`, `interview-feedback` — and
-  `presentation-feedback`) log `request received` → `anthropic call
+  `presentation-questions` / `presentation-feedback`) log `request received` → `anthropic call
   started` → `succeeded` / `failed` → `response sent`; `expert-request` and
   `script-label` log their own lifecycle; `state` / `attempts` log failures
   only. Every line is prefixed `[<route> <request-id>]` (see `lib/logger.ts`);
@@ -370,7 +372,8 @@ wrapper over `GET/PATCH /api/state` and `POST/DELETE /api/attempts`.
     `presentation_run_started` (`{mode, slide_count, has_audience,
     has_time_limit}`, every Start / Run it again), `presentation_take_completed` (`{used_video,
     duration_sec, slide_count}`), `presentation_feedback_received`
-    (`{effective_score, effective_band, used_video}`); survey key
+    (`{effective_score, effective_band, used_video}`),
+    `presentation_qa_completed` (`{asked, answered}`); survey key
     `presentation_feedback_rating`.
 - **What is never sent** — script text, transcript content, feedback text,
   the expert-form name/email/situation, and interviewer profiles / job
@@ -396,7 +399,8 @@ a single combined counter across `/api/generate-script`,
 (`/api/generate-questions`, `/api/followup-question`, `/api/qa-feedback`), and
 the three interview routes (`/api/interview-questions`,
 `/api/interview-followup`, `/api/interview-feedback` — a full round is 3–7
-counted calls), and `/api/presentation-feedback` (one per run) —
+counted calls), and the presentation routes (`/api/presentation-feedback`,
+one per run, plus `/api/presentation-questions` when audience Q&A is on) —
 **not** per-user rate limiting, and under concurrency it can overshoot by a few.
 
 - **Set the limit** — `DEMO_REQUEST_LIMIT` in `.env.local` (e.g. `100`). Blank or
@@ -560,7 +564,8 @@ run-through, and see which points landed.
    upload .txt/.md/.pdf) or **Slides** (import a `.pptx` — parsed in your
    browser, the file is never uploaded — or add slides by hand; each slide's
    title + notes stay editable). Both are kept; the active tab is what gets
-   used. Optional *"Who's in the room?"* and a time limit. Auto-saved to
+   used. Optional *"Who's in the room?"*, a time limit, and **Finish with
+   audience questions** (`audienceQa`, off by default). Auto-saved to
    `PresentationPrep` (same load guard + save-on-leave as interviews).
    `.pptx` import follows the deck's real slide order, decodes entities,
    drops slide-number boxes, falls back to a slide's first text box when its
@@ -575,17 +580,29 @@ run-through, and see which points landed.
    Confident 25 · Connected 25 · Smooth 20 — not a tone, so the `/script` and
    `/generate` dropdowns are unchanged). Editing the transcript rescores; Get
    feedback waits until recording stops.
-3. **Feedback** — `POST /api/presentation-feedback` → **Overall** /
+3. **Audience Q&A** (only when turned on) — *Continue to audience questions*
+   calls `POST /api/presentation-questions` (one Claude call, counted against
+   the demo cap), which returns **2** single-sentence questions someone in the
+   described audience would ask about what you actually said: one probing a
+   claim or something unclear, one about what's missing, risks or next steps.
+   Answer each out loud (`PresentationQaStep.tsx`, `PracticeRecorder` +
+   editable transcript). *Skip questions → get feedback* is always there;
+   unanswered questions are dropped. No follow-ups.
+4. **Feedback** — `POST /api/presentation-feedback` → **Overall** /
    **Coverage** (each slide, or up to ~8 talking points from your notes:
    covered, partly, or missed) / **Flow & timing** (pacing per slide, total vs.
-   your limit) / **Delivery** / **Nonverbal** (camera only) / **For your next
-   run**, shaped by your audience description.
-4. **History** — each run with feedback is saved to `PresentationTake`
-   (newest 50) and listed alongside: date, duration, Effective score; expand
-   for the feedback, delete to remove.
+   your limit) / **Delivery** / **Nonverbal** (camera only) / **Q&A** (only
+   when answers were given: directness, accuracy vs. the talk, composure) /
+   **For your next run**, shaped by your audience description. If feedback
+   fails after Q&A, you stay on the feedback screen with *Try the feedback
+   again* rather than redoing the questions.
+5. **History** — each run with feedback is saved to `PresentationTake`
+   (newest 50, answered Q&A in its `qa` column) and listed alongside: date,
+   duration, Effective score, a "Q&A" marker; expand for the feedback,
+   delete to remove.
 
-v1 scope: no audience Q&A after the talk, no drill-one-slide mode, no numeric
-coverage score. Your notes, slides and transcripts are sent to Anthropic only
+v1 scope: no drill-one-slide mode, no numeric coverage score, no follow-up
+questions in Q&A. Your notes, slides and transcripts are sent to Anthropic only
 as prompt context — never to PostHog, never previewed in server logs.
 
 ## Quality evals

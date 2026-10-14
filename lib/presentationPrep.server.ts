@@ -22,6 +22,7 @@ function rowToTake(r: TakeRow): PresentationTake {
     effective: (r.effective ?? null) as PresentationTake["effective"],
     nonverbal: (r.nonverbal ?? null) as PresentationTake["nonverbal"],
     slideTimings: (r.slideTimings ?? null) as PresentationTake["slideTimings"],
+    qa: (r.qa ?? null) as PresentationTake["qa"],
   };
 }
 
@@ -71,6 +72,7 @@ export async function addTake(sessionId: string, input: unknown): Promise<Presen
       effective: json(take.effective),
       nonverbal: json(take.nonverbal),
       slideTimings: json(take.slideTimings),
+      qa: json(take.qa),
     },
   });
   const stale = await prisma.presentationTake.findMany({

@@ -20,12 +20,15 @@ import {
   buildInterviewFeedbackPrompt,
   PRESENTATION_FEEDBACK_SYSTEM_PROMPT,
   buildPresentationFeedbackPrompt,
+  PRESENTATION_QUESTIONS_SYSTEM_PROMPT,
+  buildPresentationQuestionsPrompt,
   type FeedbackPromptExtras,
 } from "./prompt";
 import type {
   InterviewExchange,
   InterviewPanelist,
   InterviewPrepState,
+  PresentationPrep,
   PlannedQuestion,
   QAExchange,
   Tone,
@@ -164,7 +167,7 @@ const NUMBERED_LINE = /^[ \t]*\d+[.)][ \t]*/;
 /** Parse a "1. ...\n2. ..." numbered list (see QUESTION_SYSTEM_PROMPT) into
  *  individual question strings. Only numbered lines count, so a stray preamble
  *  or closing remark can't become a "question". */
-function parseQuestions(text: string): string[] {
+export function parseQuestions(text: string): string[] {
   return text
     .split("\n")
     .filter((line) => NUMBERED_LINE.test(line))
@@ -325,6 +328,20 @@ export async function generatePresentationFeedback(
     messages: [{ role: "user", content: buildPresentationFeedbackPrompt(input) }],
   });
   return textOf(response);
+}
+
+/** Presentation mode: two audience questions grounded in the talk. */
+export async function generatePresentationQuestions(
+  prep: PresentationPrep,
+  transcript: string,
+): Promise<string[]> {
+  const response = await getClient().messages.create({
+    model: MODEL,
+    max_tokens: 400,
+    system: PRESENTATION_QUESTIONS_SYSTEM_PROMPT,
+    messages: [{ role: "user", content: buildPresentationQuestionsPrompt(prep, transcript) }],
+  });
+  return parseQuestions(textOf(response));
 }
 
 function textOf(response: Anthropic.Message): string {

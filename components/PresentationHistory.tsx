@@ -50,6 +50,7 @@ export default function PresentationHistory({ takes, onDelete, loadFailed, notic
                 </span>
                 <span className="text-text-muted">· {formatDuration(t.durationSec)}</span>
                 {t.effective && <span className="text-text-muted">· Effective {Math.round(t.effective.score)}</span>}
+                {t.qa?.length ? <span className="text-text-muted">· Q&amp;A</span> : null}
                 {t.talkTitle && <span className="truncate text-text-muted">· {t.talkTitle}</span>}
               </button>
               {confirming !== t.id && (

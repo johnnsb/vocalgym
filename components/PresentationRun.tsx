@@ -16,13 +16,26 @@ interface Props {
   onTranscript: (t: string) => void;
   onGetFeedback: () => void;
   onBack: () => void;
+  /** Label for the main button (default "Get feedback"). */
+  primaryLabel?: string;
+  /** Optional extra action next to it (e.g. skip audience questions). */
+  secondary?: { label: string; onClick: () => void };
 }
 
 // One continuous take. Slides mode shows the current slide with prev/next;
 // every slide change is timestamped, and when a recording stops the time on
 // each slide inside the recording window is computed (accumulateTimings).
 // Recording again replaces the previous take.
-export default function PresentationRun({ prep, result, onRecording, onTranscript, onGetFeedback, onBack }: Props) {
+export default function PresentationRun({
+  prep,
+  result,
+  onRecording,
+  onTranscript,
+  onGetFeedback,
+  onBack,
+  primaryLabel = "Get feedback",
+  secondary,
+}: Props) {
   const slides = prep.mode === "slides" ? prep.slides : [];
   const [index, setIndex] = useState(0);
   const changes = useRef<{ slideId: string; at: number }[]>(
@@ -121,8 +134,13 @@ export default function PresentationRun({ prep, result, onRecording, onTranscrip
 
         <div className="flex flex-wrap gap-3">
           <Button onClick={onGetFeedback} disabled={recording || !result?.transcript.trim()} iconAfter="arrow-right">
-            Get feedback
+            {primaryLabel}
           </Button>
+          {secondary && (
+            <Button variant="secondary" onClick={secondary.onClick} disabled={recording || !result?.transcript.trim()}>
+              {secondary.label}
+            </Button>
+          )}
           <Button variant="ghost" onClick={onBack} disabled={recording}>
             Edit setup
           </Button>

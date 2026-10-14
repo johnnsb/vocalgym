@@ -6,6 +6,7 @@ import { coerceNonverbal } from "@/lib/nonverbal";
 import {
   PRESENTATION_LIMITS,
   normalizePresentationPrep,
+  normalizeQa,
   normalizeSlideTimings,
   presentationHasContent,
 } from "@/lib/presentationPrep";
@@ -36,6 +37,7 @@ export async function POST(request: Request) {
     slideTimings?: unknown;
     nonverbal?: unknown;
     signals?: unknown;
+    qa?: unknown;
   };
 
   const prep = normalizePresentationPrep(body.prep);
@@ -62,6 +64,7 @@ export async function POST(request: Request) {
   const slideTimings =
     prep.mode === "slides" ? normalizeSlideTimings(body.slideTimings, prep.slides) : [];
   const nonverbal = coerceNonverbal(body.nonverbal);
+  const qa = normalizeQa(body.qa);
   const signals = coerceSignals(body.signals);
   // Recomputed server-side (as practice-feedback does) so the number Claude
   // narrates matches the one the client showed.
@@ -79,6 +82,7 @@ export async function POST(request: Request) {
       slides: prep.slides.length,
       transcriptChars: transcript.length,
       hasCamera: nonverbal != null,
+      qa: qa.length,
     });
     const feedback = await generatePresentationFeedback({
       prep,
@@ -88,10 +92,11 @@ export async function POST(request: Request) {
       nonverbal,
       effective,
       signals,
+      qa,
     });
     logInfo(SCOPE, rid, "anthropic call succeeded", { chars: feedback.length });
 
-    const check = verifyPresentationFeedback(feedback);
+    const check = verifyPresentationFeedback(feedback, { hasQa: qa.length > 0 });
     if (!check.ok) {
       logError(SCOPE, rid, `verification failed: missing ${check.missing.join(", ")}`);
       Sentry.captureMessage("presentation-feedback verification failed", {

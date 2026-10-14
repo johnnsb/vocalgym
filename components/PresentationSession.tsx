@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import PresentationSetup from "./PresentationSetup";
 import PresentationRun from "./PresentationRun";
+import PresentationQaStep from "./PresentationQaStep";
 import {
   applyRecording,
   keepaliveSafe,
@@ -27,13 +28,19 @@ import { emptyPresentationPrep, presentationHasContent } from "@/lib/presentatio
 import { shouldPersist } from "@/lib/interviewRound";
 import { reportClientError } from "@/lib/clientErrors";
 import { EVENTS, track } from "@/lib/analytics";
-import type { PresentationFeedbackResponse, PresentationPrep, PresentationTake } from "@/lib/types";
+import type {
+  PresentationFeedbackResponse,
+  PresentationPrep,
+  PresentationQA,
+  PresentationQuestionsResponse,
+  PresentationTake,
+} from "@/lib/types";
 import { Button, Callout, Card } from "@/components/ui";
 
 // /prep/presentation: setup (persisted) -> run (one continuous take) ->
 // feedback (take saved to history only after feedback succeeds).
 
-type Stage = "loading" | "setup" | "run" | "feedback-loading" | "feedback";
+type Stage = "loading" | "setup" | "run" | "qa-loading" | "qa" | "feedback-loading" | "feedback";
 
 const SAVE_DEBOUNCE_MS = 800;
 
@@ -47,6 +54,12 @@ export default function PresentationSession() {
   const [demoLimited, setDemoLimited] = useState(false);
   const [saveWarning, setSaveWarning] = useState<string | null>(null);
   const [takeWarning, setTakeWarning] = useState<string | null>(null);
+  // Opt-in audience Q&A after the run (prep.audienceQa).
+  const [questions, setQuestions] = useState<string[]>([]);
+  const [qaIndex, setQaIndex] = useState(0);
+  const [qaAnswers, setQaAnswers] = useState<string[]>([]);
+  // The Q&A sent with the last feedback request, for "Try again".
+  const lastQa = useRef<PresentationQA[]>([]);
   const [takesLoadFailed, setTakesLoadFailed] = useState(false);
   const [historyNotice, setHistoryNotice] = useState<string | null>(null);
 
@@ -144,11 +157,55 @@ export default function PresentationSession() {
     setError(null);
     setDemoLimited(false);
     setTakeWarning(null);
+    setQuestions([]);
+    setQaIndex(0);
+    setQaAnswers([]);
+    lastQa.current = [];
     setStage("run");
   }
 
-  async function getFeedback() {
+  async function startQa() {
     if (!result?.transcript.trim()) return;
+    setError(null);
+    setDemoLimited(false);
+    setStage("qa-loading");
+    try {
+      const data = await postJSON<PresentationQuestionsResponse>("/api/presentation-questions", {
+        prep,
+        transcript: result.transcript,
+      });
+      setQuestions(data.questions);
+      setQaAnswers(data.questions.map(() => ""));
+      setQaIndex(0);
+      setStage("qa");
+    } catch (err) {
+      if ((err as FetchError)?.demoLimited) setDemoLimited(true);
+      else {
+        reportClientError(err, { area: "presentation:questions" });
+        setError(
+          `${err instanceof Error ? err.message : "Something went wrong."} You can skip the questions and get feedback on the talk.`,
+        );
+      }
+      setStage("run");
+    }
+  }
+
+  /** Answered pairs so far (a skipped question has no answer and is dropped). */
+  function answeredQa(): PresentationQA[] {
+    return questions
+      .map((question, i) => ({ question, answer: (qaAnswers[i] ?? "").trim() }))
+      .filter((x) => x.answer);
+  }
+
+  function finishQa() {
+    const qa = answeredQa();
+    track(EVENTS.presentationQaCompleted, { asked: questions.length, answered: qa.length });
+    void getFeedback(qa);
+  }
+
+  async function getFeedback(qa: PresentationQA[] = []) {
+    if (!result?.transcript.trim()) return;
+    lastQa.current = qa;
     setError(null);
     setDemoLimited(false);
     setStage("feedback-loading");
@@ -160,6 +217,7 @@ export default function PresentationSession() {
         slideTimings: result.slideTimings,
         nonverbal: result.nonverbal,
         signals: result.signals,
+        qa,
       });
       setFeedback(data.feedback);
       setStage("feedback");
@@ -176,6 +234,7 @@ export default function PresentationSession() {
         effective: result.effective,
         nonverbal: result.nonverbal,
         slideTimings: result.slideTimings,
+        qa: qa.length ? qa : null,
       })
         .then((t) => setTakes((prev) => [t, ...prev].slice(0, 50)))
         .catch((err) => {
@@ -188,7 +247,14 @@ export default function PresentationSession() {
         reportClientError(err, { area: "presentation:feedback" });
         setError(err instanceof Error ? err.message : "Something went wrong.");
       }
-      setStage("run");
+      // With answered Q&A, don't send the user back through the questions:
+      // stay on the feedback screen with a retry instead.
+      if (qa.length) {
+        setFeedback(null);
+        setStage("feedback");
+      } else {
+        setStage("run");
+      }
     }
   }
 
@@ -249,8 +315,36 @@ export default function PresentationSession() {
             });
           }}
           onTranscript={(t) => setResult((prev) => withTranscript(prev, t))}
-          onGetFeedback={getFeedback}
+          onGetFeedback={prep.audienceQa ? startQa : () => void getFeedback()}
           onBack={() => setStage("setup")}
+          primaryLabel={prep.audienceQa ? "Continue to audience questions" : "Get feedback"}
+          secondary={prep.audienceQa ? { label: "Skip questions → get feedback", onClick: () => void getFeedback() } : undefined}
+        />
+        {notices}
+      </div>
+    );
+  } else if (stage === "qa-loading") {
+    main = (
+      <Card>
+        <p className="text-body-sm text-text-muted">The audience is thinking of questions…</p>
+      </Card>
+    );
+  } else if (stage === "qa" && questions[qaIndex]) {
+    const i = qaIndex;
+    main = (
+      <div className="space-y-4">
+        <PresentationQaStep
+          question={questions[i]}
+          number={i + 1}
+          total={questions.length}
+          answer={qaAnswers[i] ?? ""}
+          onAnswer={(text) => {
+            // A recording that lands after moving on must not overwrite another answer.
+            if (stageRef.current !== "qa") return;
+            setQaAnswers((prev) => prev.map((a, j) => (j === i ? text : a)));
+          }}
+          onContinue={() => (i + 1 < questions.length ? setQaIndex(i + 1) : finishQa())}
+          onSkip={finishQa}
         />
         {notices}
       </div>
@@ -266,10 +360,17 @@ export default function PresentationSession() {
       <div className="space-y-6">
         {result?.effective && <EffectiveScore result={result.effective} signals={result.signals} />}
         {result?.nonverbal && <NonverbalSummary metrics={result.nonverbal} />}
-        {feedback && (
+        {feedback ? (
           <Card padding="lg">
             <h2 className="mb-5 text-h4 text-text-primary">How it went</h2>
             <PresentationFeedbackSections feedback={feedback} />
+          </Card>
+        ) : (
+          <Card className="space-y-4">
+            {notices}
+            <Button onClick={() => void getFeedback(lastQa.current)} icon="rotate-ccw">
+              Try the feedback again
+            </Button>
           </Card>
         )}
         {takeWarning && <Callout tone="caution">{takeWarning}</Callout>}

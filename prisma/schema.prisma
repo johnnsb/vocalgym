@@ -125,6 +125,8 @@ model PresentationTake {
   effective    Json?
   nonverbal    Json?
   slideTimings Json?
+  /// PresentationQA[] | null — audience questions + spoken answers (opt-in).
+  qa           Json?
 
   @@index([sessionId, createdAt])
 }
