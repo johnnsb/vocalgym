@@ -206,16 +206,24 @@ const PRESENTATION_FEEDBACK_SECTIONS: { label: string; re: RegExp }[] = [
   ["For your next run", String.raw`(?:for\s+your\s+)?next\s+run\b`],
 ].map(([label, body]) => ({ label, re: new RegExp(SECTION_HEAD + body, "i") }));
 
+const PRESENTATION_QA_SECTION = {
+  label: "Q&A",
+  re: new RegExp(SECTION_HEAD + String.raw`q\s*(?:&|and)\s*a\b`, "i"),
+};
+
 /** Required presentation-feedback sections (Nonverbal is optional — camera
- *  only). Section headings only: bold or #/## (see SECTION_HEAD). */
-export function verifyPresentationFeedback(text: unknown): FeedbackCheck {
+ *  only; Q&A is required only when the run ended with audience Q&A).
+ *  Section headings only: bold or #/## (see SECTION_HEAD). */
+export function verifyPresentationFeedback(
+  text: unknown,
+  opts: { hasQa?: boolean } = {},
+): FeedbackCheck {
+  const required = opts.hasQa
+    ? [...PRESENTATION_FEEDBACK_SECTIONS, PRESENTATION_QA_SECTION]
+    : PRESENTATION_FEEDBACK_SECTIONS;
   if (typeof text !== "string" || text.trim().length < 60) {
-    return {
-      ok: false,
-      missing: PRESENTATION_FEEDBACK_SECTIONS.map((s) => s.label),
-      reason: "empty-or-too-short",
-    };
+    return { ok: false, missing: required.map((s) => s.label), reason: "empty-or-too-short" };
   }
-  const missing = PRESENTATION_FEEDBACK_SECTIONS.filter((s) => !s.re.test(text)).map((s) => s.label);
+  const missing = required.filter((s) => !s.re.test(text)).map((s) => s.label);
   return { ok: missing.length === 0, missing };
 }

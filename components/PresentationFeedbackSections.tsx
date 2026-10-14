@@ -10,6 +10,7 @@ const SECTIONS: { test: RegExp; title: string; icon: string; emphasis?: boolean 
   { test: /^flow\s*(?:&|and)\s*timing\b/i, title: "Flow & timing", icon: "clock" },
   { test: /^delivery\b/i, title: "Delivery", icon: "mic" },
   { test: /^nonverbal\b/i, title: "Nonverbal", icon: "video" },
+  { test: /^q\s*(?:&|and)\s*a\b/i, title: "Q&A", icon: "hand" },
   { test: /^(?:for\s+your\s+)?next\s+run\b/i, title: "For your next run", icon: "arrow-right", emphasis: true },
 ];
 

@@ -32,3 +32,13 @@ describe("verifyPresentationFeedback", () => {
     expect(verifyPresentationFeedback(null).ok).toBe(false);
   });
 });
+
+describe("verifyPresentationFeedback with Q&A", () => {
+  it("requires a Q&A section only when Q&A happened", () => {
+    expect(verifyPresentationFeedback(FULL, { hasQa: true })).toMatchObject({ ok: false, missing: ["Q&A"] });
+    const withQa = FULL.replace("**For your next run**", "**Q&A** — Direct answers.\n**For your next run**");
+    expect(verifyPresentationFeedback(withQa, { hasQa: true }).ok).toBe(true);
+    expect(verifyPresentationFeedback(FULL, { hasQa: false }).ok).toBe(true);
+    expect(verifyPresentationFeedback(withQa.replace("**Q&A**", "## Q and A"), { hasQa: true }).ok).toBe(true);
+  });
+});

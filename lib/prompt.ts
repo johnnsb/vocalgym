@@ -6,6 +6,7 @@ import type {
   NonverbalMetrics,
   ObservableSignals,
   PresentationPrep,
+  PresentationQA,
   QAExchange,
   SlideTiming,
   Tone,
@@ -455,20 +456,14 @@ Format the response in Markdown with these sections, in this order, using exactl
 - **Flow & timing** — 2 to 3 bullets: order and transitions, time per slide when timings are given (call out slides that ran long or got rushed), and total length against the time limit when one is given.
 - **Delivery** — 2 to 3 bullets on pace, filler words, and energy; name the highest-weighted quality that scored lowest when a rubric is given.
 - **Nonverbal** — ONLY if a <camera> block is present: 1 to 2 bullets. Omit this section entirely otherwise.
+- **Q&A** — ONLY if an <audience_qa> block is present: 2 to 3 bullets on how they handled the audience questions — did they answer directly, stay accurate to their own talk, admit what they didn't know, and stay composed. Omit this section entirely otherwise.
 - **For your next run** — 2 to 3 concrete, prioritized changes.
 
 When a rubric block refers to "For your next take", apply that to **For your next run**. If an <audience> is described, say what that audience will care about where it matters ("the CFO will want the cost figure before slide 5"). Be direct but supportive. No preamble before the feedback.`;
 
-export function buildPresentationFeedbackPrompt(input: {
-  prep: PresentationPrep;
-  transcript: string;
-  durationSec: number;
-  slideTimings: SlideTiming[];
-  nonverbal: NonverbalMetrics | null;
-  effective: EffectiveResult | null;
-  signals: ObservableSignals | null;
-}): string {
-  const { prep } = input;
+/** <talk> (slides tagged S1..Sn, or notes) + <audience> + <time_limit> —
+ *  shared by the presentation feedback and audience-questions prompts. */
+function talkContextLines(prep: PresentationPrep): string[] {
   const titleAttr = prep.title.trim().replace(/"/g, "'");
   const lines: string[] = [`<talk title="${titleAttr}">`];
   if (prep.mode === "slides") {
@@ -482,9 +477,23 @@ export function buildPresentationFeedbackPrompt(input: {
     lines.push("<notes>", prep.notes.trim(), "</notes>");
   }
   lines.push("</talk>");
-
   if (prep.audience.trim()) lines.push("", "<audience>", prep.audience.trim(), "</audience>");
   if (prep.timeLimitMin) lines.push("", `<time_limit minutes="${prep.timeLimitMin}" />`);
+  return lines;
+}
+
+export function buildPresentationFeedbackPrompt(input: {
+  prep: PresentationPrep;
+  transcript: string;
+  durationSec: number;
+  slideTimings: SlideTiming[];
+  nonverbal: NonverbalMetrics | null;
+  effective: EffectiveResult | null;
+  signals: ObservableSignals | null;
+  qa?: PresentationQA[] | null;
+}): string {
+  const { prep } = input;
+  const lines: string[] = talkContextLines(prep);
 
   lines.push("", "<slide_timings_summary>", `Total: ${formatDuration(input.durationSec)}`, "</slide_timings_summary>");
   if (prep.mode === "slides" && input.slideTimings.length) {
@@ -512,8 +521,48 @@ export function buildPresentationFeedbackPrompt(input: {
     "(Spoken out loud and transcribed by speech-to-text — expect some transcription noise.)",
     input.transcript.trim(),
     "</transcript>",
-    "",
-    "Give the feedback.",
   );
+  if (input.qa?.length) {
+    lines.push("", "<audience_qa>");
+    input.qa.forEach((x, i) => {
+      lines.push(
+        `<exchange number="${i + 1}">`,
+        "<question>",
+        x.question.trim(),
+        "</question>",
+        "<answer>",
+        x.answer.trim(),
+        "</answer>",
+        "</exchange>",
+      );
+    });
+    lines.push("</audience_qa>");
+  }
+  lines.push("", "Give the feedback.");
   return lines.join("\n");
+}
+
+export const PRESENTATION_QUESTIONS_SYSTEM_PROMPT = `You are a member of the audience that just heard this talk (described in <audience> when given — otherwise a sharp, interested colleague). The speaker's notes or slides are given, and what they actually said out loud is in <transcript> (speech-to-text — ignore transcription noise).
+
+Ask the two questions a real person in that room would most likely ask right after the talk:
+1. One that presses on something they actually said — a claim, a number, a recommendation, or something they left vague.
+2. One about what's missing: a risk, a cost, an alternative, or what happens next.
+
+Ground both in the talk. If the audience is described, ask what that audience would care about. They will answer out loud, so each question asks exactly one thing: a single sentence ending in "?", under 30 words, no compound second half.
+
+Reply with ONLY a numbered list:
+1. <question>
+2. <question>`;
+
+export function buildPresentationQuestionsPrompt(prep: PresentationPrep, transcript: string): string {
+  return [
+    ...talkContextLines(prep),
+    "",
+    "<transcript>",
+    "(Spoken out loud and transcribed by speech-to-text — expect some transcription noise.)",
+    transcript.trim(),
+    "</transcript>",
+    "",
+    "Ask your two questions.",
+  ].join("\n");
 }

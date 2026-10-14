@@ -1,5 +1,6 @@
 import type {
   EffectiveResult,
+  PresentationQA,
   NonverbalMetrics,
   PresentationPrep,
   PresentationSlide,
@@ -26,6 +27,9 @@ export const PRESENTATION_LIMITS = {
   feedback: 40_000,
   durationSecMax: 10_800,
   id: 100,
+  qaMax: 3,
+  qaQuestion: 500,
+  qaAnswer: 12_000,
 } as const;
 
 function str(v: unknown, max: number): string {
@@ -45,7 +49,7 @@ function clampInt(v: unknown, min: number, max: number): number | null {
 }
 
 export function emptyPresentationPrep(): PresentationPrep {
-  return { title: "", mode: "notes", notes: "", slides: [], audience: "", timeLimitMin: null };
+  return { title: "", mode: "notes", notes: "", slides: [], audience: "", timeLimitMin: null, audienceQa: false };
 }
 
 /** ≤40 slides; combined notes ≤20,000 chars with later slides cut first
@@ -97,7 +101,23 @@ export function normalizePresentationPrep(input: unknown): PresentationPrep {
       PRESENTATION_LIMITS.timeLimitMinMin,
       PRESENTATION_LIMITS.timeLimitMinMax,
     ),
+    audienceQa: r.audienceQa === true,
   };
+}
+
+/** Answered audience Q&A pairs only (a skipped question has no answer), ≤3,
+ *  trimmed and capped. */
+export function normalizeQa(input: unknown): PresentationQA[] {
+  if (!Array.isArray(input)) return [];
+  const out: PresentationQA[] = [];
+  for (const raw of input) {
+    if (out.length >= PRESENTATION_LIMITS.qaMax) break;
+    const q = obj(raw);
+    const question = str(q.question, 10_000).trim().slice(0, PRESENTATION_LIMITS.qaQuestion);
+    const answer = str(q.answer, 100_000).trim().slice(0, PRESENTATION_LIMITS.qaAnswer);
+    if (question && answer) out.push({ question, answer });
+  }
+  return out;
 }
 
 /** Is there anything to present in the ACTIVE mode? (Start gate + route 400.) */
@@ -149,6 +169,7 @@ export function normalizeTakeInput(input: unknown): PresentationTakeInput | null
     : null;
   const effective = r.effective && typeof r.effective === "object" ? (r.effective as EffectiveResult) : null;
   const nonverbal = r.nonverbal && typeof r.nonverbal === "object" ? (r.nonverbal as NonverbalMetrics) : null;
+  const qa = normalizeQa(r.qa);
   return {
     talkTitle: str(r.talkTitle, PRESENTATION_LIMITS.title),
     durationSec: duration,
@@ -157,6 +178,7 @@ export function normalizeTakeInput(input: unknown): PresentationTakeInput | null
     effective,
     nonverbal,
     slideTimings: timings,
+    qa: qa.length ? qa : null,
   };
 }
 

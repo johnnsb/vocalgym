@@ -6,7 +6,7 @@ import { ACCEPTED_UPLOAD, extractScriptText } from "@/lib/scriptImport";
 import { reportClientError } from "@/lib/clientErrors";
 import { PRESENTATION_LIMITS, parseTimeLimit } from "@/lib/presentationPrep";
 import type { PresentationPrep } from "@/lib/types";
-import { Button, Callout, Card, Field, Input, Tabs, Textarea } from "@/components/ui";
+import { Button, Callout, Card, Checkbox, Field, Input, Tabs, Textarea } from "@/components/ui";
 
 // Controlled setup form for /prep/presentation. Saving is the parent's job.
 
@@ -109,6 +109,13 @@ export default function PresentationSetup({ value, onChange }: Props) {
             onChange={(e) => set({ audience: e.target.value })}
           />
         </Field>
+        <Checkbox
+          id="talk-qa"
+          label="Finish with audience questions"
+          description="After your run-through, answer 2 questions someone in the room would likely ask — based on what you actually said."
+          checked={value.audienceQa}
+          onChange={(next) => set({ audienceQa: next })}
+        />
         <Field label="Time limit (minutes)" htmlFor="talk-limit" hint="Optional.">
           <Input
             id="talk-limit"

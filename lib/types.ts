@@ -336,6 +336,18 @@ export interface PresentationPrep {
   slides: PresentationSlide[];
   audience: string;
   timeLimitMin: number | null;
+  /** Finish the run with 2 audience questions (POST /api/presentation-questions). */
+  audienceQa: boolean;
+}
+
+/** One audience question after the talk and the speaker's spoken answer. */
+export interface PresentationQA {
+  question: string;
+  answer: string;
+}
+
+export interface PresentationQuestionsResponse {
+  questions: string[];
 }
 
 export interface SlideTiming {
@@ -351,6 +363,7 @@ export interface PresentationTakeInput {
   effective: EffectiveResult | null;
   nonverbal: NonverbalMetrics | null;
   slideTimings: SlideTiming[] | null;
+  qa: PresentationQA[] | null;
 }
 
 export interface PresentationTake extends PresentationTakeInput {
@@ -366,6 +379,7 @@ export interface PresentationFeedbackRequest {
   slideTimings: SlideTiming[] | null;
   nonverbal: NonverbalMetrics | null;
   signals: ObservableSignals | null;
+  qa?: PresentationQA[] | null;
 }
 
 export interface PresentationFeedbackResponse {

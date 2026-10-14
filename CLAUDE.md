@@ -54,7 +54,12 @@ you: gotchas, rationale, and rules.
 - Presentation: takes are stored in `PresentationTake`, NEVER `Attempt`, so
   `/practice` history is unaffected; saved only after feedback succeeds.
   `.pptx` slide order comes from `ppt/presentation.xml` `sldIdLst`, never file
-  names. Per-slide timing can be ~0.5s off.
+  names. Per-slide timing can be ~0.5s off. Audience Q&A (opt-in
+  `audienceQa`): unanswered questions are dropped; only answered pairs go to
+  feedback, which requires the **Q&A** section only then
+  (`verifyPresentationFeedback(text, { hasQa })`). If feedback fails after
+  Q&A, the user stays on the feedback screen with a retry (`lastQa`) instead
+  of being sent back through the questions.
 - Script ids: `patchState` keeps `currentScript.id` stable while the text is
   unchanged and mints a new UUID when it changes; attempts copy `scriptId` /
   `scriptLabel` so history groups by script.
@@ -80,8 +85,10 @@ you: gotchas, rationale, and rules.
 - `/experts` is NOT an AI feature — a contact form fulfilled manually.
 - Deliberately unfinished (v0): `/grill` and interview rounds have no
   persistence, no rubric/Effective score, and their camera signal is unused;
-  `/grill` isn't wired to PostHog. Presentation v1 has no audience Q&A,
-  drill-one-slide mode, numeric coverage score, or slide images.
+  `/grill` isn't wired to PostHog. Presentation v1 has no drill-one-slide
+  mode, numeric coverage score, or slide images; its audience Q&A is exactly
+  2 questions with no follow-ups (YAGNI — see
+  `docs/superpowers/specs/2026-10-03-presentation-qa-design.md`).
 - `FeedbackWidget` keeps its emoji faces (a shipped feature) even though the
   design system says "Emoji: never".
 - Interviewer profiles, notes, slides, audiences and transcripts are
@@ -172,8 +179,7 @@ you: gotchas, rationale, and rules.
   exceed the design-tool read cap) and switch `SiteHeader` from the text
   wordmark to `<BrandMark>`.
 - Sentry source-map upload — wiring done; needs the three SENTRY_* values.
-- Presentation follow-ups: audience Q&A, drill-one-slide, numeric coverage
-  score. Known rough edges: feedback checks accept a bullet-prefixed heading
+- Presentation follow-ups: drill-one-slide, numeric coverage score. Known rough edges: feedback checks accept a bullet-prefixed heading
   and reject `###` headings; user text isn't escaped inside prompt XML tags.
 - Interview rounds and `/grill` aren't persisted (no history, no resume).
 

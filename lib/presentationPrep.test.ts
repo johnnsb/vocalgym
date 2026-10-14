@@ -8,6 +8,7 @@ import {
   parseTimeLimit,
   normalizePresentationPrep,
   normalizeSlideTimings,
+  normalizeQa,
   normalizeTakeInput,
   presentationHasContent,
 } from "./presentationPrep";
@@ -20,7 +21,7 @@ describe("normalizePresentationPrep", () => {
       expect(normalizePresentationPrep(input)).toEqual(emptyPresentationPrep());
     }
     expect(emptyPresentationPrep()).toEqual({
-      title: "", mode: "notes", notes: "", slides: [], audience: "", timeLimitMin: null,
+      title: "", mode: "notes", notes: "", slides: [], audience: "", timeLimitMin: null, audienceQa: false,
     });
   });
 
@@ -213,5 +214,41 @@ describe("parseTimeLimit", () => {
     expect(parseTimeLimit("150")).toBe(120);
     expect(parseTimeLimit("7.6")).toBe(8);
     expect(parseTimeLimit("15")).toBe(15);
+  });
+});
+
+describe("audience Q&A", () => {
+  it("audienceQa is a strict boolean, default false", () => {
+    expect(normalizePresentationPrep({ audienceQa: true }).audienceQa).toBe(true);
+    expect(normalizePresentationPrep({ audienceQa: "yes" }).audienceQa).toBe(false);
+    expect(normalizePresentationPrep({}).audienceQa).toBe(false);
+  });
+
+  it("normalizeQa keeps answered pairs only, trimmed and capped", () => {
+    expect(
+      normalizeQa([
+        { question: " Why now? ", answer: " Because churn. " },
+        { question: "What's next?", answer: "   " },
+        { question: "", answer: "orphan" },
+        null,
+        { question: "q".repeat(900), answer: "a".repeat(20_000) },
+        { question: "Fourth?", answer: "x" },
+        { question: "Fifth?", answer: "y" },
+      ]),
+    ).toEqual([
+      { question: "Why now?", answer: "Because churn." },
+      { question: "q".repeat(500), answer: "a".repeat(12_000) },
+      { question: "Fourth?", answer: "x" },
+    ]);
+    expect(normalizeQa("nope")).toEqual([]);
+  });
+
+  it("normalizeTakeInput keeps Q&A (or null when none)", () => {
+    const base = { transcript: "t", feedback: "f" };
+    expect(normalizeTakeInput({ ...base, qa: [{ question: "Q?", answer: "A" }] })!.qa).toEqual([
+      { question: "Q?", answer: "A" },
+    ]);
+    expect(normalizeTakeInput(base)!.qa).toBeNull();
+    expect(normalizeTakeInput({ ...base, qa: [{ question: "Q?", answer: " " }] })!.qa).toBeNull();
   });
 });

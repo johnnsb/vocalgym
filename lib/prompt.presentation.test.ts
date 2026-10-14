@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildPresentationFeedbackPrompt } from "./prompt";
+import { buildPresentationFeedbackPrompt, buildPresentationQuestionsPrompt } from "./prompt";
 import { emptyPresentationPrep } from "./presentationPrep";
 import type { PresentationPrep } from "./types";
 
@@ -68,5 +68,25 @@ describe("buildPresentationFeedbackPrompt", () => {
   it("labels the transcript as speech-to-text", () => {
     const t = buildPresentationFeedbackPrompt({ ...base, prep: slidesPrep, slideTimings: [] });
     expect(t).toMatch(/<transcript>\n\(Spoken out loud and transcribed by speech-to-text[^\n]*\)\nSo today\.\.\.\n<\/transcript>/);
+  });
+});
+
+describe("audience Q&A prompts", () => {
+  it("questions prompt carries the talk, the audience and what was said", () => {
+    const t = buildPresentationQuestionsPrompt(slidesPrep, "We cut churn by twelve percent.");
+    expect(t).toContain('<slide tag="S1">');
+    expect(t).toContain("<audience>\nExec team; CFO cares about cost\n</audience>");
+    expect(t).toMatch(/<transcript>[\s\S]*We cut churn by twelve percent\.[\s\S]*<\/transcript>/);
+  });
+
+  it("feedback prompt includes answered Q&A when given, and nothing otherwise", () => {
+    const withQa = buildPresentationFeedbackPrompt({
+      ...base,
+      prep: slidesPrep,
+      slideTimings: [],
+      qa: [{ question: "What does Pro cost?", answer: "About forty a seat." }],
+    });
+    expect(withQa).toContain('<audience_qa>\n<exchange number="1">\n<question>\nWhat does Pro cost?\n</question>\n<answer>\nAbout forty a seat.\n</answer>\n</exchange>\n</audience_qa>');
+    expect(buildPresentationFeedbackPrompt({ ...base, prep: slidesPrep, slideTimings: [] })).not.toContain("<audience_qa>");
   });
 });
