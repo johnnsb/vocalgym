@@ -190,15 +190,18 @@ export default function PresentationSession() {
     }
   }
 
-  /** Answered pairs so far (a skipped question has no answer and is dropped). */
-  function answeredQa(): PresentationQA[] {
+  /** Answered pairs before index `upTo` (skipped/unanswered ones are dropped). */
+  function answeredQa(upTo = questions.length): PresentationQA[] {
     return questions
+      .slice(0, upTo)
       .map((question, i) => ({ question, answer: (qaAnswers[i] ?? "").trim() }))
       .filter((x) => x.answer);
   }
 
-  function finishQa() {
-    const qa = answeredQa();
+  /** `skipFrom`: first question index to leave out when the user skips — it
+   *  and later ones are dropped even if an answer is already typed/recorded. */
+  function finishQa(skipFrom?: number) {
+    const qa = answeredQa(skipFrom);
     track(EVENTS.presentationQaCompleted, { asked: questions.length, answered: qa.length });
     void getFeedback(qa);
   }
@@ -344,7 +347,9 @@ export default function PresentationSession() {
             setQaAnswers((prev) => prev.map((a, j) => (j === i ? text : a)));
           }}
           onContinue={() => (i + 1 < questions.length ? setQaIndex(i + 1) : finishQa())}
-          onSkip={finishQa}
+          // Matches the button labels: "Skip this one" (last question) drops the
+          // on-screen answer; "Skip the rest" keeps it and drops later questions.
+          onSkip={() => finishQa(i + 1 < questions.length ? i + 1 : i)}
         />
         {notices}
       </div>
@@ -378,11 +383,14 @@ export default function PresentationSession() {
           <Button onClick={startRun} icon="rotate-ccw">Run it again</Button>
           <Button variant="secondary" onClick={() => setStage("setup")}>Edit setup</Button>
         </div>
-        <FeedbackWidget
-          surveyKey="presentation_feedback_rating"
-          surveyName="Presentation feedback"
-          question="How useful was this run-through feedback?"
-        />
+        {/* Only rate feedback that was actually shown (not the retry screen). */}
+        {feedback && (
+          <FeedbackWidget
+            surveyKey="presentation_feedback_rating"
+            surveyName="Presentation feedback"
+            question="How useful was this run-through feedback?"
+          />
+        )}
       </div>
     );
   }

@@ -23,6 +23,15 @@ you: gotchas, rationale, and rules.
 - Vitest is pinned to v3 because v5 peer-requires `@types/node` ≥22 and the
   repo is on 20. Unit tests cover pure `lib/` logic only (`lib/**/*.test.ts`);
   UI flows are verified manually in the browser.
+- ESLint is pinned to v8 (`.eslintrc.json`, `next/core-web-vitals`) because
+  Next 14's `next lint` doesn't support v9.
+- npm 11 `allowScripts` in `package.json`: entries are pinned to exact
+  versions, so upgrading Prisma / esbuild / `@sentry/cli` means re-running
+  `npm install-scripts approve <pkg>` — otherwise Prisma silently stops
+  generating its client on install.
+- Use nvm's arm64 Node v24. An Intel Homebrew Node v26 in `/usr/local` (now
+  unlinked) made npm install x64 native packages (`@rollup/rollup-darwin-x64`
+  missing → `npm test` crashed).
 - tsconfig has no `target`, so spreading iterators (`[...map.entries()]`,
   `[...str.matchAll()]`) fails `tsc` — use `Array.from(...)`.
 - Sentry is gated on `NEXT_PUBLIC_SENTRY_DSN` (blank = fully disabled, zero
