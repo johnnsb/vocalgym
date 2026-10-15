@@ -15,6 +15,12 @@ you: gotchas, rationale, and rules.
   `DATABASE_URL`. The Prisma CLI reads only `.env`, so both `DATABASE_*` vars
   live in `.env` AND `.env.local` — keep them in sync. Postgres is the source
   of truth for all app data; localStorage is no longer used for it.
+- Hosting: Vercel (chosen over Cloud Run for zero-config Next; keep the code
+  host-agnostic so a later move is just a Dockerfile). `npm run build` runs
+  `prisma migrate deploy`, so ANY build migrates the DB in `DATABASE_URL` —
+  that's why Vercel Preview uses the Neon dev branch and only Production uses
+  the Neon `production` branch. Never point Preview at production. Vercel
+  Hobby is non-commercial only — move to Pro before charging users.
 - Models: `MODEL = claude-sonnet-5` and `LABEL_MODEL =
   claude-haiku-4-5-20251001` (script titles) in `lib/anthropic.ts`.
 - MediaPipe (Face/Pose Landmarker) runs client-side, lazy-loaded only when the
@@ -182,8 +188,6 @@ you: gotchas, rationale, and rules.
 
 ## Not yet built (known future work)
 - Auth/accounts — data is scoped to the anonymous `vg_sid` cookie.
-- `prisma migrate deploy` in a deploy pipeline (`db:deploy` script exists,
-  nothing runs it).
 - Export the 8 brand logo PNGs from the DS project into `public/brand/` (they
   exceed the design-tool read cap) and switch `SiteHeader` from the text
   wordmark to `<BrandMark>`.
