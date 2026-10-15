@@ -296,7 +296,11 @@ npm run db:deploy                        # apply pending migrations (prod/CI)
 npm run db:studio                        # browse the data
 ```
 
-`npm run build` runs `prisma generate` first; `postinstall` runs it too.
+`npm run build` runs `prisma generate && prisma migrate deploy && next build`
+(`postinstall` also runs `prisma generate`). So **every build applies committed
+migrations to whatever database `DATABASE_URL` points at** — locally that's the
+dev DB (a no-op when it's current); on Vercel it's production. It never creates
+or resets migrations, and a failed migration fails the build.
 
 **Identity:** `middleware.ts` sets an httpOnly `vg_sid` cookie (random UUID) on
 every request and forwards it via an `x-vg-sid` header. `lib/session.ts`
@@ -307,6 +311,38 @@ switching browsers starts a fresh session.
 uses the `import { prisma } from "@/lib/prisma"` singleton — never
 `new PrismaClient()`). The client goes through `lib/practiceStore.ts`, an async
 wrapper over `GET/PATCH /api/state` and `POST/DELETE /api/attempts`.
+
+## Deployment (Vercel)
+
+Hosted on Vercel, deployed automatically from GitHub (`johnnsb/vocalgym`):
+pushes to `main` → Production; any other branch → a Preview URL. Nothing in the
+code is Vercel-specific (no Vercel KV/Analytics), so moving to e.g. Cloud Run
+later means adding a Dockerfile (`output: "standalone"`) and copying the env vars.
+
+- **Region:** `vercel.json` pins functions to `cle1` (Cleveland), next to the
+  Neon database in AWS `us-east-2`.
+- **Node:** `package.json` `engines` pins `24.x`, matching local dev.
+- **Databases:** two Neon branches. `production` (branched from the dev data)
+  backs the Production environment; the original dev branch backs Preview and
+  local dev. Because the build runs `prisma migrate deploy`, **Preview must use
+  the dev branch's connection strings** — otherwise a feature branch's
+  migration would be applied to production before it's merged.
+- **Access:** `SITE_PASSWORD` is set in Production, so the deploy is gated
+  (see [Site-wide password gate](#site-wide-password-gate)).
+
+Environment variables (Vercel → Project → Settings → Environment Variables),
+same names as `.env.example`:
+
+| Variable | Production | Preview |
+| --- | --- | --- |
+| `DATABASE_URL`, `DATABASE_URL_POOLED` | Neon `production` branch | Neon dev branch |
+| `ANTHROPIC_API_KEY` (+ `ANTHROPIC_WORKSPACE_ID` if needed) | ✓ | ✓ |
+| `SITE_PASSWORD` | ✓ | ✓ |
+| `DEMO_REQUEST_LIMIT`, `USAGE_ADMIN_TOKEN` | ✓ | ✓ |
+| `NEXT_PUBLIC_SENTRY_DSN`, `NEXT_PUBLIC_POSTHOG_KEY` | ✓ | optional |
+| `SENTRY_ORG`, `SENTRY_PROJECT`, `SENTRY_AUTH_TOKEN` | optional (source maps) | — |
+
+`NEXT_PUBLIC_*` values are inlined at build time — changing one needs a redeploy.
 
 ## Observability
 
