@@ -15,6 +15,15 @@ import { formatNonverbalForPrompt } from "./nonverbal";
 import { formatRubricForPrompt } from "./rubric";
 import { formatDuration } from "./presentationPrep";
 
+/** User (or model-echoed) text placed inside one of our XML-style tags.
+ *  Escapes only a `<` that starts something tag-shaped, so pasted text can't
+ *  close the tag it sits in (`</notes>`) or open a fake one. Ordinary "<" and
+ *  "&" in prose reach the model unchanged — full XML escaping would turn "R&D"
+ *  into "R&amp;D", which the model then quotes back in its feedback. */
+export function tagText(s: string): string {
+  return s.replace(/<(?=\/?[A-Za-z_])/g, "&lt;");
+}
+
 /**
  * Bump this whenever SYSTEM_PROMPT, FEEDBACK_SYSTEM_PROMPT, or the prompt
  * builders below change meaningfully. evals/run.ts stamps every result file
@@ -167,7 +176,7 @@ Generate between 3 and 6 questions. No preamble, no commentary, no headers — j
 export function buildQuestionsPrompt(source: string): string {
   return [
     "<source_material>",
-    source.trim(),
+    tagText(source.trim()),
     "</source_material>",
     "",
     "Generate the questions.",
@@ -204,23 +213,23 @@ export function buildFollowUpPrompt(
   // model must never blur where the document ends and the spoken answer begins.
   const lines = [
     "<source_material>",
-    source.trim(),
+    tagText(source.trim()),
     "</source_material>",
     "",
     "<original_question>",
-    originalQuestion.trim(),
+    tagText(originalQuestion.trim()),
     "</original_question>",
     "",
     "<candidate_answer>",
     "(Spoken out loud and transcribed by speech-to-text — expect some transcription noise. Not part of the source material.)",
-    transcript.trim(),
+    tagText(transcript.trim()),
     "</candidate_answer>",
   ];
   if (otherQuestions?.length) {
     lines.push(
       "",
       "<other_questions_already_asked>",
-      otherQuestions.map((q) => `- ${q}`).join("\n"),
+      otherQuestions.map((q) => `- ${tagText(q)}`).join("\n"),
       "</other_questions_already_asked>",
     );
   }
@@ -259,16 +268,16 @@ export function buildQAFeedbackPrompt(
   // Explicit open/close tags, same reasoning as buildFollowUpPrompt: the
   // feedback's "Accuracy vs. source" section is only as good as the model's
   // grip on where the document ends and the spoken answers begin.
-  const lines = ["<source_material>", source.trim(), "</source_material>", ""];
+  const lines = ["<source_material>", tagText(source.trim()), "</source_material>", ""];
   exchanges.forEach((ex, i) => {
     lines.push(
       `<exchange number="${i + 1}">`,
       "<question>",
-      ex.question.trim(),
+      tagText(ex.question.trim()),
       "</question>",
       "<answer>",
       "(Spoken out loud and transcribed by speech-to-text. Not part of the source material.)",
-      ex.transcript.trim(),
+      tagText(ex.transcript.trim()),
       "</answer>",
       "</exchange>",
       "",
@@ -298,16 +307,16 @@ export function buildInterviewContext({ panel, candidate }: InterviewPrepState):
   panel.forEach((p, i) => {
     lines.push(`<interviewer tag="P${i + 1}">`);
     const before = lines.length;
-    if (p.name.trim()) lines.push(`Name: ${p.name.trim()}`);
-    if (p.title.trim()) lines.push(`Title: ${p.title.trim()}`);
-    if (p.company.trim()) lines.push(`Company: ${p.company.trim()}`);
+    if (p.name.trim()) lines.push(`Name: ${tagText(p.name.trim())}`);
+    if (p.title.trim()) lines.push(`Title: ${tagText(p.title.trim())}`);
+    if (p.company.trim()) lines.push(`Company: ${tagText(p.company.trim())}`);
     if (p.about.trim()) {
-      lines.push("<what_we_know>", p.about.trim(), "</what_we_know>");
+      lines.push("<what_we_know>", tagText(p.about.trim()), "</what_we_know>");
     }
     if (p.pastQuestions.trim()) {
       lines.push(
         "<questions_they_have_asked_before>",
-        p.pastQuestions.trim(),
+        tagText(p.pastQuestions.trim()),
         "</questions_they_have_asked_before>",
       );
     }
@@ -317,16 +326,16 @@ export function buildInterviewContext({ panel, candidate }: InterviewPrepState):
   lines.push("</panel>");
 
   if (candidate.jobDescription.trim()) {
-    lines.push("", "<job_description>", candidate.jobDescription.trim(), "</job_description>");
+    lines.push("", "<job_description>", tagText(candidate.jobDescription.trim()), "</job_description>");
   }
   if (candidate.background.trim()) {
-    lines.push("", "<candidate_background>", candidate.background.trim(), "</candidate_background>");
+    lines.push("", "<candidate_background>", tagText(candidate.background.trim()), "</candidate_background>");
   }
   if (candidate.keyPoints.length) {
     lines.push(
       "",
       "<key_points_to_land>",
-      candidate.keyPoints.map((k) => `- ${k}`).join("\n"),
+      candidate.keyPoints.map((k) => `- ${tagText(k)}`).join("\n"),
       "</key_points_to_land>",
     );
   }
@@ -377,19 +386,19 @@ export function buildInterviewFollowUpPrompt(
     "",
     `<asked_by tag="${panelTag(prep.panel, panelistId)}" />`,
     "<question>",
-    question.trim(),
+    tagText(question.trim()),
     "</question>",
     "",
     "<candidate_answer>",
     "(Spoken out loud and transcribed by speech-to-text — expect some transcription noise.)",
-    transcript.trim(),
+    tagText(transcript.trim()),
     "</candidate_answer>",
   ];
   if (upcomingQuestions.length) {
     lines.push(
       "",
       "<upcoming_questions>",
-      upcomingQuestions.map((q) => `- ${q}`).join("\n"),
+      upcomingQuestions.map((q) => `- ${tagText(q)}`).join("\n"),
       "</upcoming_questions>",
     );
   }
@@ -421,20 +430,20 @@ export function buildInterviewFeedbackPrompt(
     lines.push(
       `<exchange number="${i + 1}" asked_by="${panelTag(prep.panel, ex.panelistId)}">`,
       "<question>",
-      ex.question.trim(),
+      tagText(ex.question.trim()),
       "</question>",
       "<answer>",
-      ex.transcript.trim(),
+      tagText(ex.transcript.trim()),
       "</answer>",
     );
     // A follow-up shown but never answered (ended early) is left out entirely.
     if (ex.followUp?.trim() && ex.followUpTranscript?.trim()) {
       lines.push(
         "<follow_up>",
-        ex.followUp.trim(),
+        tagText(ex.followUp.trim()),
         "</follow_up>",
         "<follow_up_answer>",
-        ex.followUpTranscript.trim(),
+        tagText(ex.followUpTranscript.trim()),
         "</follow_up_answer>",
       );
     }
@@ -464,20 +473,20 @@ When a rubric block refers to "For your next take", apply that to **For your nex
 /** <talk> (slides tagged S1..Sn, or notes) + <audience> + <time_limit> —
  *  shared by the presentation feedback and audience-questions prompts. */
 function talkContextLines(prep: PresentationPrep): string[] {
-  const titleAttr = prep.title.trim().replace(/"/g, "'");
+  const titleAttr = tagText(prep.title.trim()).replace(/"/g, "'");
   const lines: string[] = [`<talk title="${titleAttr}">`];
   if (prep.mode === "slides") {
     prep.slides.forEach((s, i) => {
-      lines.push(`<slide tag="S${i + 1}">`, `Title: ${s.title.trim() || "(untitled)"}`);
-      if (s.notes.trim()) lines.push("<notes>", s.notes.trim(), "</notes>");
+      lines.push(`<slide tag="S${i + 1}">`, `Title: ${tagText(s.title.trim()) || "(untitled)"}`);
+      if (s.notes.trim()) lines.push("<notes>", tagText(s.notes.trim()), "</notes>");
       else lines.push("(no notes)");
       lines.push("</slide>");
     });
   } else {
-    lines.push("<notes>", prep.notes.trim(), "</notes>");
+    lines.push("<notes>", tagText(prep.notes.trim()), "</notes>");
   }
   lines.push("</talk>");
-  if (prep.audience.trim()) lines.push("", "<audience>", prep.audience.trim(), "</audience>");
+  if (prep.audience.trim()) lines.push("", "<audience>", tagText(prep.audience.trim()), "</audience>");
   if (prep.timeLimitMin) lines.push("", `<time_limit minutes="${prep.timeLimitMin}" />`);
   return lines;
 }
@@ -501,7 +510,7 @@ export function buildPresentationFeedbackPrompt(input: {
     const rows = prep.slides
       .map((s, i) =>
         byId.has(s.id)
-          ? `S${i + 1} ${s.title.trim() || "(untitled)"}: ${formatDuration(byId.get(s.id) as number)}`
+          ? `S${i + 1} ${tagText(s.title.trim()) || "(untitled)"}: ${formatDuration(byId.get(s.id) as number)}`
           : null,
       )
       .filter(Boolean);
@@ -519,7 +528,7 @@ export function buildPresentationFeedbackPrompt(input: {
     "",
     "<transcript>",
     "(Spoken out loud and transcribed by speech-to-text — expect some transcription noise.)",
-    input.transcript.trim(),
+    tagText(input.transcript.trim()),
     "</transcript>",
   );
   if (input.qa?.length) {
@@ -528,10 +537,10 @@ export function buildPresentationFeedbackPrompt(input: {
       lines.push(
         `<exchange number="${i + 1}">`,
         "<question>",
-        x.question.trim(),
+        tagText(x.question.trim()),
         "</question>",
         "<answer>",
-        x.answer.trim(),
+        tagText(x.answer.trim()),
         "</answer>",
         "</exchange>",
       );
@@ -560,7 +569,7 @@ export function buildPresentationQuestionsPrompt(prep: PresentationPrep, transcr
     "",
     "<transcript>",
     "(Spoken out loud and transcribed by speech-to-text — expect some transcription noise.)",
-    transcript.trim(),
+    tagText(transcript.trim()),
     "</transcript>",
     "",
     "Ask your two questions.",

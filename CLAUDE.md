@@ -75,6 +75,11 @@ you: gotchas, rationale, and rules.
   (`verifyPresentationFeedback(text, { hasQa })`). If feedback fails after
   Q&A, the user stays on the feedback screen with a retry (`lastQa`) instead
   of being sent back through the questions.
+- Prompt tags: every piece of user (or model-echoed) text placed inside one of
+  the XML-style prompt tags goes through `tagText` (`lib/prompt.ts`), which
+  escapes only a tag-shaped `<` — so pasted notes can't close `</notes>`, and
+  "R&D" / "a < b" reach the model untouched. New tagged fields must use it
+  (`lib/prompt.escaping.test.ts` counts closing tags per builder).
 - Script ids: `patchState` keeps `currentScript.id` stable while the text is
   unchanged and mints a new UUID when it changes; attempts copy `scriptId` /
   `scriptLabel` so history groups by script.
@@ -192,8 +197,9 @@ you: gotchas, rationale, and rules.
   exceed the design-tool read cap) and switch `SiteHeader` from the text
   wordmark to `<BrandMark>`.
 - Sentry source-map upload — wiring done; needs the three SENTRY_* values.
-- Presentation follow-ups: drill-one-slide, numeric coverage score. Known rough edges: feedback checks accept a bullet-prefixed heading
-  and reject `###` headings; user text isn't escaped inside prompt XML tags.
+- Presentation follow-ups: drill-one-slide, numeric coverage score. Known
+  rough edge: feedback checks accept a bullet-prefixed heading and reject
+  `###` headings.
 - Interview rounds and `/grill` aren't persisted (no history, no resume).
 
 ## Maintenance
