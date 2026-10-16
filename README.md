@@ -322,11 +322,12 @@ later means adding a Dockerfile (`output: "standalone"`) and copying the env var
 - **Region:** `vercel.json` pins functions to `cle1` (Cleveland), next to the
   Neon database in AWS `us-east-2`.
 - **Node:** `package.json` `engines` pins `24.x`, matching local dev.
-- **Databases:** two Neon branches. `production` (branched from the dev data)
-  backs the Production environment; the original dev branch backs Preview and
-  local dev. Because the build runs `prisma migrate deploy`, **Preview must use
-  the dev branch's connection strings** — otherwise a feature branch's
-  migration would be applied to production before it's merged.
+- **Databases:** the Neon `production` branch (branched from the dev data)
+  backs Production only. Preview has **no** `DATABASE_*` vars, so branch
+  preview builds fail at `prisma migrate deploy` — deliberately, since the
+  build migrates whatever DB it's given. To enable previews, add the Neon
+  **dev** branch's strings scoped to Preview — never production's, or a
+  feature branch's migration would hit production before it's merged.
 - **Access:** `SITE_PASSWORD` is set in Production, so the deploy is gated
   (see [Site-wide password gate](#site-wide-password-gate)).
 
@@ -335,7 +336,7 @@ same names as `.env.example`:
 
 | Variable | Production | Preview |
 | --- | --- | --- |
-| `DATABASE_URL`, `DATABASE_URL_POOLED` | Neon `production` branch | Neon dev branch |
+| `DATABASE_URL`, `DATABASE_URL_POOLED` | Neon `production` branch | not set (dev branch if previews are wanted) |
 | `ANTHROPIC_API_KEY` (+ `ANTHROPIC_WORKSPACE_ID` if needed) | ✓ | ✓ |
 | `SITE_PASSWORD` | ✓ | ✓ |
 | `DEMO_REQUEST_LIMIT`, `USAGE_ADMIN_TOKEN` | ✓ | ✓ |
