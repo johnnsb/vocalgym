@@ -541,7 +541,9 @@ too, then get qualitative feedback across both exchanges. It's reached from the
    rule: only what's in the source may be described as "in the proposal";
    anything only in the answer is "you said". This is the core of the feature —
    an earlier `--- SOURCE MATERIAL ---`-header version once presented a detail
-   the user had only said aloud as part of the plan.
+   the user had only said aloud as part of the plan. User text inside every
+   prompt tag (here and in interview/presentation) goes through `tagText`, so
+   a pasted `</source_material>` can't end the block early.
 4. Answer the follow-up the same way, then `POST /api/qa-feedback` — `{
    source, exchanges }` → `{ feedback }`, qualitative Markdown across both
    exchanges (**Overall** / **Accuracy vs. source** / **Composure** / **For
