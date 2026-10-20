@@ -43,9 +43,10 @@ you: gotchas, rationale, and rules.
 - Sentry is gated on `NEXT_PUBLIC_SENTRY_DSN` (blank = fully disabled, zero
   bundle cost). A DSN IS set in `.env.local`, so it's active in `npm run dev`
   too (`environment: development`). Source-map upload needs SENTRY_ORG +
-  SENTRY_PROJECT + SENTRY_AUTH_TOKEN all set. **Unverified:** whether the
-  plugin deletes the generated `.map` files after upload or leaves them
-  publicly served — check build output the first time a real token is set.
+  SENTRY_PROJECT + SENTRY_AUTH_TOKEN all set. Production `.map` files return
+  403 (confirmed in the Oct 16 production check). **Still unverified:** whether
+  the plugin deletes the generated `.map` files after upload — check build
+  output the first time a real token is set.
 - PostHog is gated on `NEXT_PUBLIC_POSTHOG_KEY` (blank = SDK never imported).
   A key IS set in `.env.local`, so analytics and the `FeedbackWidget` prompts
   are LIVE in dev. Autocapture, session recording and anonymous person
@@ -88,8 +89,9 @@ you: gotchas, rationale, and rules.
   subheading can't satisfy a missing section. `cleanQuestion` deliberately
   never truncates, so a cut-off model reply fails verification instead of
   shipping mid-sentence. Failures → log + Sentry + graceful 502 with a `code`.
-- `lib/claudeRoute.ts` and `lib/clientFetch.ts` are used ONLY by the interview
-  routes/UI; older routes keep inline copies.
+- `lib/claudeRoute.ts` is used by the interview and presentation routes, and
+  `lib/clientFetch.ts` by `InterviewSession` and `PresentationSession`; the
+  older routes (including `/grill`) keep inline copies.
 - Every Claude-calling route counts against the shared `UsageCounter`
   (`DEMO_REQUEST_LIMIT`, `lib/usageCounter.ts`) — new Claude routes must too.
   `/api/script-label` is the one exception (best-effort, not counted).

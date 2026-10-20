@@ -111,7 +111,7 @@ sentry.server.config.ts            \
 sentry.edge.config.ts               } Sentry.init() per runtime (no-op without DSN)
 middleware.ts                      Ensures the anonymous `vg_sid` cookie + the `vg_gate` password-gate check
 prisma/
-  schema.prisma                    Session / Attempt / InterviewPrep / ExpertRequest / UsageCounter
+  schema.prisma                    Session / Attempt / InterviewPrep / PresentationPrep / PresentationTake / ExpertRequest / UsageCounter
   migrations/                      Committed SQL migrations (prisma migrate)
 app/
   api/generate-script/route.ts     POST -> { script, label } from one Claude call
@@ -186,7 +186,7 @@ components/
   PresentationFeedbackSections.tsx Parses presentation feedback markdown (own section set)
   PresentationHistory.tsx          Past runs: date, duration, score; expand / delete
 lib/
-  anthropic.ts                     Anthropic client + generateScript() / generatePracticeFeedback() / generateScriptLabel() / generateQuestions() / generateFollowUpQuestion() / generateQAFeedback()
+  anthropic.ts                     Anthropic client + generateScript() / generatePracticeFeedback() / generateScriptLabel() / generateQuestions() / generateFollowUpQuestion() / generateQAFeedback() / generateInterviewPlan() / generateInterviewFollowUp() / generateInterviewFeedback() / generatePresentationFeedback() / generatePresentationQuestions()
   prompt.ts                        System prompts + prompt builders
   types.ts                         Shared types (tones, metrics, rubric, signals, score, grill Q&A types)
   practiceStore.ts                 Client fetch wrapper over /api/state + /api/attempts
@@ -209,7 +209,7 @@ lib/
   interviewPrep.server.ts          InterviewPrep table access (getPrep / savePrep)
   interviewRound.ts                Pure: recordAnswer / shouldPersist (interview data-safety rules)
   interviewPrepStore.ts            Client fetch wrapper over /api/interview-prep
-  claudeRoute.ts                   Shared demo-cap + Anthropic-error responses (interview routes)
+  claudeRoute.ts                   Shared demo-cap + Anthropic-error responses (interview + presentation routes)
   clientFetch.ts                   Client postJSON with demo-cap handling (interview + presentation UI)
   presentationPrep.ts              Pure: presentation limits, normalization, capSlides, accumulateTimings
   presentationRun.ts               Pure: take state — applyRecording / withTranscript / keepaliveSafe
