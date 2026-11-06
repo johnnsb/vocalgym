@@ -5,7 +5,7 @@ situation, get an AI-generated script (or upload their own), then practice
 delivering it and receive feedback on content, vocal delivery, and nonverbal
 signals — rolled up into a single "Effective" score.
 
-The route-by-route architecture tour lives in README.md ("Project structure"
+The route-by-route architecture tour lives in docs/DEVELOPMENT.md ("Project structure"
 and the per-feature sections). This file keeps only what the code can't tell
 you: gotchas, rationale, and rules.
 
@@ -206,5 +206,5 @@ you: gotchas, rationale, and rules.
 
 ## Maintenance
 - After completing a feature or meaningful architectural change, update this
-  file (gotchas, decisions, "not yet built") and README.md (the architecture
+  file (gotchas, decisions, "not yet built") and docs/DEVELOPMENT.md (the architecture
   tour) before considering the task done.
