@@ -8,7 +8,7 @@ description: Run or interpret VocalGym's AI output-quality evals (evals/, `npm r
 Separate from unit tests: this measures AI **output quality**, not correctness.
 Run manually with `npm run eval` (uses the `tsx` devDependency). It isn't wired
 into CI or any schedule. Re-run it by hand when `lib/prompt.ts` or `MODEL`
-(`lib/anthropic.ts`) changes. Full docs: README.md "Quality evals".
+(`lib/anthropic.ts`) changes. Full docs: docs/DEVELOPMENT.md "Quality evals".
 
 - `evals/dataset.ts`: 14 realistic situations covering all 7 tone presets.
 - `evals/generateSyntheticAttempt.ts`: a Claude call that writes a synthetic
